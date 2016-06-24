@@ -1,0 +1,222 @@
+<!--
+	algo-mission.html
+
+	Initial version of the algo-mission project entry point.
+
+	Author: Ian Felstead
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>Algo-Mission</title>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<style>
+			body {
+				margin: 0px;
+				overflow: hidden;
+			}
+			/* Main Window */
+			#AlgoMission {
+				position: absolute;
+				top: 0;
+				left: 0;
+				right: 0;
+				bottom: 0;
+			}
+		</style>
+	</head>
+
+	<body>
+		<div id="AlgoMission"></div>
+
+		<script src="thirdparty/threejs/three.min.js"></script>
+		<script src="thirdparty/threejs/orbitcontrols.js"></script>
+
+		<script>
+
+			// ---------------
+
+			const VERSION = 0.01;
+
+			var g_MouseControls;
+
+			// Main Screen Globals
+			var g_Scene;
+			var g_Camera;
+			var g_Renderer;
+			var g_Element;
+			var g_Container;
+			
+			var g_Bot;
+
+
+			// Game Loop Globals
+			const UPDATE_TIME_STEP = 0.033; // 33ms = approx 30 FPS
+			var g_Clock;
+			var g_Lag = 0; 	// used in game loop for fixed step update
+
+			// Main
+
+			console.log( "algo-mission v" + VERSION + " starting..." );
+
+			initialise();
+
+			gameLoop(); 	// intial kickoff, subsequest calls via requestAnimationFrame()
+
+			console.log( "...algo-mission complete." );
+
+			// ---------------
+
+
+			//
+			// Initialisation
+			//
+
+			function initialise()
+			{
+				setupBasicScene();
+
+				addCamera();
+
+				addAmbientLight();
+
+				addMouseControls();
+
+				addAxisHelper();
+
+				addBot();
+
+				setupGameLoop();
+
+				addEventListeners();
+			}
+
+			function setupGameLoop()
+			{
+				g_Clock = new THREE.Clock();
+
+				g_Lag = 0;
+			}
+
+			function setupBasicScene()
+			{
+				g_Renderer = new THREE.WebGLRenderer();
+				g_Element = g_Renderer.domElement;
+				g_Container = document.getElementById('AlgoMission');
+				g_Container.appendChild(g_Element);
+
+				g_Scene = new THREE.Scene();
+			}
+
+			function addCamera()
+			{
+				g_Camera = new THREE.PerspectiveCamera(90, 1, 0.001, 1700);
+        			g_Camera.position.set(-5, 2, -5);
+	        		g_Camera.lookAt( new THREE.Vector3(0,0,0) );
+		        	g_Scene.add(g_Camera);
+			}
+
+			function addMouseControls()
+			{
+        			g_MouseControls = new THREE.OrbitControls(g_Camera, g_Element);
+        			g_MouseControls.rotateUp(Math.PI / 4);
+	        		g_MouseControls.target.set(
+		          		g_Camera.position.x + 0.1,
+			            	g_Camera.position.y,
+				        g_Camera.position.z );
+				g_MouseControls.noZoom = true;
+				g_MouseControls.noPan = true;
+			}
+
+			function addAmbientLight()
+			{
+				var white = 0xA0A0A0;
+				g_Scene.add( new THREE.AmbientLight(white) );
+
+			}
+
+			function addBot()
+			{
+				var geo = new THREE.CubeGeometry( 20, 20, 20 );
+				var material = new THREE.MeshNormalMaterial();
+				g_Bot = new THREE.Mesh( geo, material );
+
+				g_Bot.position.y = -100;
+
+				g_Scene.add( g_Bot );
+			}
+
+			function addEventListeners()
+			{
+				window.addEventListener('resize', handleResize, false);
+				setTimeout(handleResize, 1);
+			}
+
+
+			//
+			// Game Loop
+			//
+
+			// gameLoop()
+			// Standard game loop with a fixed update rate to keep
+			// things consistent, and a variable render rate to allow
+			// for differences in machine performance
+			//
+			function gameLoop()
+			{
+				var elapsedTime = g_Clock.getDelta();
+
+				g_Lag += elapsedTime;
+
+				// perform as many updates as we should do
+				// based on the time elapsed from last gameloop call
+				while( g_Lag >= UPDATE_TIME_STEP )
+				{
+					update();
+
+					g_Lag -= UPDATE_TIME_STEP;
+
+                                        //console.log( "update called, g_Lag now " + g_Lag );
+				}
+
+				render();
+
+				requestAnimationFrame(gameLoop);
+			}
+
+			function update()
+			{
+				// Note: The time elapsed is UPDATE_TIME_STEP as we update in fixed steps
+			}
+
+			function render( )
+			{
+				g_Renderer.render(g_Scene, g_Camera);
+			}
+
+			function handleResize()
+			{
+				var width = g_Container.offsetWidth;
+				var height = g_Container.offsetHeight;
+
+				g_Camera.aspect = width / height;
+			        g_Camera.updateProjectionMatrix();
+
+				g_Renderer.setSize(width, height);
+			}
+
+
+			//
+			// Debugging Functions
+			//
+
+			function addAxisHelper()
+			{
+				g_Scene.add( new THREE.AxisHelper( 50 ) );
+			}
+		</script>
+	</body>
+</html>
+	
