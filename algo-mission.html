@@ -78,9 +78,30 @@
 			var g_InsetContainer;
 			var g_InsetCamera;
 
-			// TBD: dummy object to confirm I can process clicks ok in inset window
-			var g_ControlPanelObjectTest;
+			// Control Panel
+			var g_ControlPanelObjects; 	// an array of buttons (meshes)
 
+			var g_InstructionEnum = {
+			   UP: 1,
+			   DOWN: 2,
+			   LEFT: 3,
+			   RIGHT: 4,
+			   GO: 5,
+			   FIRE: 6,
+			   PAUSE: 7,
+			   CLEAR: 8,
+
+			   properties: {
+				1: {displayString: "up<p>", value: 1},
+				2: {displayString: "down<p>", value: 2},
+			       	3: {displayString: "left<p>", value: 3},
+			       	4: {displayString: "right<p>", value: 4},               
+			       	5: {displayString: "go<p>", value: 5},
+			       	6: {displayString: "fire!<p>", value: 6},
+			       	7: {displayString: "pause..<p>", value: 7},
+			       	8: {displayString: "", value: 8}
+			   }
+			};
 
 			// Main
 
@@ -110,6 +131,8 @@
 				addMouseControls();
 				
 				addInsetWindow();
+
+				addControlPanel( g_InsetScene );
 				
 				addAxisHelper();
 
@@ -177,9 +200,6 @@
 				var material = new THREE.MeshNormalMaterial();
 				g_Bot = new THREE.Mesh( geo, material );
 
-				//g_Bot.position.y = -100;
-				//g_Bot.position.set( 2, 2, 2 );
-
 				g_Scene.add( g_Bot );
 			}
 
@@ -224,13 +244,61 @@
         			g_InsetCamera.position.set(0, 0, -50);
 
 				g_InsetScene.add( new THREE.AxisHelper( 50 ) );
+			}
 
-				// TBD: dummy object to confirm I can process clicks ok in inset window
-				var geo = new THREE.CubeGeometry( 10, 10, 10 );
-				var material = new THREE.MeshNormalMaterial();
-				g_ControlPanelObjectTest = new THREE.Mesh( geo, material );
-				g_ControlPanelObjectTest.name = "dummyTBD";
-				g_InsetScene.add( g_ControlPanelObjectTest );
+			function addControlPanel( sceneToUpdate )
+			{
+				g_ControlPanelObjects = {};
+
+				// Layout is something like this (x grows left, y grows up)
+				//
+				//                   [up]
+				//           [left] [pause] [right]
+				//    [fire]         [down]
+				//           [clear]        [go]
+				//
+				var boxSize = 1; 	// for display size is irrelevant as FoV will alter to fill window
+				var gridSize = 4; 	// panel buttons are placed on a 4x4 grid
+				var defaultZ = 1;
+				var stepSize = boxSize * 1.25;
+				var offset = (-(gridSize * stepSize) / 2) + (boxSize/2);
+
+				var panelConfig = [
+					{ "id": g_InstructionEnum.UP,    "x": 1, "y": 3, "z": defaultZ, "pic": "up.png" },
+					{ "id": g_InstructionEnum.DOWN,  "x": 1, "y": 1, "z": defaultZ, "pic": "down.png" },
+					{ "id": g_InstructionEnum.LEFT,  "x": 2, "y": 2, "z": defaultZ, "pic": "left.png" },
+					{ "id": g_InstructionEnum.RIGHT, "x": 0, "y": 2, "z": defaultZ, "pic": "right.png" },
+					{ "id": g_InstructionEnum.CLEAR, "x": 2, "y": 0, "z": defaultZ, "pic": "clear.png" },
+					{ "id": g_InstructionEnum.GO,    "x": 0, "y": 0, "z": defaultZ, "pic": "go.png" },
+					{ "id": g_InstructionEnum.FIRE,  "x": 3, "y": 1, "z": defaultZ, "pic": "fire.png" },
+					{ "id": g_InstructionEnum.PAUSE, "x": 1, "y": 2, "z": defaultZ, "pic": "pause.png" }
+				];
+
+				
+				for (var i = 0; i < panelConfig.length; i++) 
+				{
+					var buttonConfig = panelConfig[i];
+
+					var buttonGeo = new THREE.BoxGeometry( boxSize, boxSize, 0.1 );
+					var buttonMaterial = new THREE.MeshBasicMaterial( {color: 0x0000ff} );
+					var buttonMesh = new THREE.Mesh( buttonGeo, buttonMaterial );
+
+					buttonMesh.position.set( offset + (buttonConfig.x*stepSize), offset + (buttonConfig.y*stepSize), buttonConfig.z );
+
+					buttonMesh.name = buttonConfig.id;
+
+					g_ControlPanelObjects[ buttonConfig.id ] = buttonMesh;
+
+					sceneToUpdate.add( buttonMesh );
+				}
+
+				// Adjust the FoV to fill the whole view with the control panel
+				var dist = (-g_InsetCamera.position.z) + defaultZ;
+				var height = gridSize * stepSize;
+				var fov = 2 * Math.atan( height / ( 2 * dist ) ) * ( 180 / Math.PI );
+				g_InsetCamera.fov = fov;
+				g_InsetCamera.updateProjectionMatrix();
+
 			}
 
 			function setupCollisionDetection()
@@ -328,14 +396,35 @@
 				g_Raycaster.setFromCamera( mouse, g_InsetCamera );
 
 				var buttonObjects = [];
-				buttonObjects.push( g_ControlPanelObjectTest );
+				for( var key in g_ControlPanelObjects )
+				{
+				    var mesh = g_ControlPanelObjects[ key ];
+				    
+				    buttonObjects.push( mesh );
+				}
 
 				var buttonIntersects = g_Raycaster.intersectObjects( buttonObjects );
 
 				if( buttonIntersects.length > 0 )
 				{
 					// Intersection detected
+
 					console.log( "object " + buttonIntersects[ 0 ].object.name + " clicked");
+
+
+					var instructionObjectClicked = buttonIntersects[ 0 ].object.name;
+					if( instructionObjectClicked == g_InstructionEnum.CLEAR )
+					{
+						// we would clear the instruction set - TBD
+					}
+					else if( instructionObjectClicked == g_InstructionEnum.GO )
+					{
+						// we would start executing the instructions - TBD
+					}
+					else
+					{
+						// we would push an instruction into the instruction set - TBD
+					}
 				}
 			}
 
