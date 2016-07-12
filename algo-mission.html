@@ -64,7 +64,7 @@
 			var INSET_DIV_NAME = "CommandInset";
 			var INSET_CANVAS_WIDTH = 200;
 			var INSET_CANVAS_HEIGHT = 200;
-			var INSET_LEFT_OFFSET = 10;
+			var INSET_LEFT_OFFSET = 0;
 			var INSET_BOTTOM_OFFSET = 10;
 			var INSET_MARGIN = 20;
 			var INSET_COLOUR = 0x4FABC9
@@ -81,9 +81,10 @@
 			// Control Panel
 			var g_ControlPanelObjects; 	// an array of buttons (meshes)
 
-			var g_InstructionEnum = {
-			   UP: 1,
-			   DOWN: 2,
+			// Instructions
+			var g_InstructionConfig = {
+			   FORWARD: 1,
+			   BACK: 2,
 			   LEFT: 3,
 			   RIGHT: 4,
 			   GO: 5,
@@ -92,8 +93,8 @@
 			   CLEAR: 8,
 
 			   properties: {
-				1: {displayString: "up<p>", value: 1},
-				2: {displayString: "down<p>", value: 2},
+				1: {displayString: "forward<p>", value: 1},
+				2: {displayString: "back<p>", value: 2},
 			       	3: {displayString: "left<p>", value: 3},
 			       	4: {displayString: "right<p>", value: 4},               
 			       	5: {displayString: "go<p>", value: 5},
@@ -102,6 +103,9 @@
 			       	8: {displayString: "", value: 8}
 			   }
 			};
+
+			var g_Instructions = [];
+			var g_InstructionHtml = "<b>Instructions:<b><p>";
 
 			// Main
 
@@ -123,6 +127,8 @@
 			function initialise()
 			{
 				setupBasicScene();
+
+				addInstructionWindow();
 
 				addCamera();
 
@@ -252,9 +258,9 @@
 
 				// Layout is something like this (x grows left, y grows up)
 				//
-				//                   [up]
+				//                 [forward]
 				//           [left] [pause] [right]
-				//    [fire]         [down]
+				//    [fire]        [back]
 				//           [clear]        [go]
 				//
 				var boxSize = 1; 	// for display size is irrelevant as FoV will alter to fill window
@@ -264,14 +270,14 @@
 				var offset = (-(gridSize * stepSize) / 2) + (boxSize/2);
 
 				var panelConfig = [
-					{ "id": g_InstructionEnum.UP,    "x": 1, "y": 3, "z": defaultZ, "pic": "up.png" },
-					{ "id": g_InstructionEnum.DOWN,  "x": 1, "y": 1, "z": defaultZ, "pic": "down.png" },
-					{ "id": g_InstructionEnum.LEFT,  "x": 2, "y": 2, "z": defaultZ, "pic": "left.png" },
-					{ "id": g_InstructionEnum.RIGHT, "x": 0, "y": 2, "z": defaultZ, "pic": "right.png" },
-					{ "id": g_InstructionEnum.CLEAR, "x": 2, "y": 0, "z": defaultZ, "pic": "clear.png" },
-					{ "id": g_InstructionEnum.GO,    "x": 0, "y": 0, "z": defaultZ, "pic": "go.png" },
-					{ "id": g_InstructionEnum.FIRE,  "x": 3, "y": 1, "z": defaultZ, "pic": "fire.png" },
-					{ "id": g_InstructionEnum.PAUSE, "x": 1, "y": 2, "z": defaultZ, "pic": "pause.png" }
+					{ "id": g_InstructionConfig.FORWARD,    "x": 1, "y": 3, "z": defaultZ, "pic": "forward.png" },
+					{ "id": g_InstructionConfig.BACK,  "x": 1, "y": 1, "z": defaultZ, "pic": "back.png" },
+					{ "id": g_InstructionConfig.LEFT,  "x": 2, "y": 2, "z": defaultZ, "pic": "left.png" },
+					{ "id": g_InstructionConfig.RIGHT, "x": 0, "y": 2, "z": defaultZ, "pic": "right.png" },
+					{ "id": g_InstructionConfig.CLEAR, "x": 2, "y": 0, "z": defaultZ, "pic": "clear.png" },
+					{ "id": g_InstructionConfig.GO,    "x": 0, "y": 0, "z": defaultZ, "pic": "go.png" },
+					{ "id": g_InstructionConfig.FIRE,  "x": 3, "y": 1, "z": defaultZ, "pic": "fire.png" },
+					{ "id": g_InstructionConfig.PAUSE, "x": 1, "y": 2, "z": defaultZ, "pic": "pause.png" }
 				];
 
 				
@@ -299,6 +305,66 @@
 				g_InsetCamera.fov = fov;
 				g_InsetCamera.updateProjectionMatrix();
 
+			}
+
+			function addInstructionWindow() 
+			{
+				var instructionDiv = document.createElement('div');
+
+				instructionDiv.id = "instructionTextBox";
+				instructionDiv.style.cssText =
+				            		"width: 200px;" +
+							"height: 200px;" +
+							"left: 20px;" +
+							"top: 20px;" +
+							"max-height: 200px;" +
+							"min-height: 200px;" +
+							"border: none;" +  /* or e.g. '2px solid black' */
+							"background-color: DimGray;" +
+							"color: White;" +
+							// we want a 50% transparent background, but not 
+							// transparent text, so use rgba rather than opacity.
+							"background: rgba(105, 105, 105, 0.5);" +
+							"overflow: auto;" +
+							"position: absolute;" +
+							"font: 12px arial,serif;";
+				
+				document.body.appendChild(instructionDiv);
+			}
+
+			function generateInstructionHtml()
+			{
+
+				var html = "<b>Instructions<b><p>";
+				
+				var numInstructions = g_Instructions.length;
+				for( var i = 0; i < numInstructions; i++ )
+				{
+					// TBD when we do instruction processing it might be nice to
+					// highlight the currently executing instruction
+					// if( i == currentInstruction )
+					// {
+					//	 html += "<b>";
+					// }
+
+					var operEnum = g_Instructions[i];
+
+					html += g_InstructionConfig.properties[ operEnum ].displayString;
+
+					// see above TBD
+					//if( i == currentInstruction )
+					//{
+					//	 html += "</b>";
+					//}
+				}
+
+				return html;
+			}
+
+			function tailScroll()
+			{
+				document.getElementById("instructionTextBox").scrollTop = 
+						document.getElementById("instructionTextBox").scrollHeight;
 			}
 
 			function setupCollisionDetection()
@@ -403,29 +469,35 @@
 				    buttonObjects.push( mesh );
 				}
 
+				var instructionsUpdated = 0;
+
 				var buttonIntersects = g_Raycaster.intersectObjects( buttonObjects );
 
 				if( buttonIntersects.length > 0 )
 				{
 					// Intersection detected
-
+					var objectClicked = buttonIntersects[ 0 ].object.name;
 					console.log( "object " + buttonIntersects[ 0 ].object.name + " clicked");
 
-
 					var instructionObjectClicked = buttonIntersects[ 0 ].object.name;
-					if( instructionObjectClicked == g_InstructionEnum.CLEAR )
+					if( instructionObjectClicked == g_InstructionConfig.CLEAR )
 					{
-						// we would clear the instruction set - TBD
+						g_Instructions = [];
+						instructionsUpdated = 1;
 					}
-					else if( instructionObjectClicked == g_InstructionEnum.GO )
+					else if( instructionObjectClicked == g_InstructionConfig.GO )
 					{
 						// we would start executing the instructions - TBD
 					}
 					else
 					{
-						// we would push an instruction into the instruction set - TBD
+						g_Instructions.push( objectClicked );
+						instructionsUpdated = 1;
 					}
 				}
+
+				document.getElementById("instructionTextBox").innerHTML = generateInstructionHtml();
+				tailScroll();
 			}
 
 			//
