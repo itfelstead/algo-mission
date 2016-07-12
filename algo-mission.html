@@ -48,8 +48,11 @@
 			var g_Renderer;
 			var g_Element;
 			var g_Container;
-			
+
+			// Bot
 			var g_Bot;
+			var g_BotMove = 0; 		// Amount to move in particular update
+			var g_BotRotation = 0; 		// Amount to rotate in partucular update
 
 			// Collision Detection
 			var g_Raycaster;
@@ -106,6 +109,19 @@
 
 			var g_Instructions = [];
 			var g_InstructionHtml = "<b>Instructions:<b><p>";
+
+			// Instruction operation processing
+			var NO_INSTRUCTION = -1;
+			var ROTATE_STEP = 90 * Math.PI/180; 	// Turn by 90 degrees (in radians)
+			var MOVE_STEP = 10; 			// Move by 10 units
+			var OP_TIME_STEP = 2; 			// Take 2 secs per instruction
+			var OP_DELAY = 0.5; 			// half second delay between operations
+
+			var g_OpTimer = 0; 			// How log operation has run for
+			var g_CurrentInstructionIdx = NO_INSTRUCTION; 	// index into g_Instructions
+			var g_InterInstructionPause = 0;
+			
+
 
 			// Main
 
@@ -340,22 +356,19 @@
 				var numInstructions = g_Instructions.length;
 				for( var i = 0; i < numInstructions; i++ )
 				{
-					// TBD when we do instruction processing it might be nice to
-					// highlight the currently executing instruction
-					// if( i == currentInstruction )
-					// {
-					//	 html += "<b>";
-					// }
+					if( i == g_CurrentInstructionIdx )
+					{
+						 html += "<b>";
+					}
 
 					var operEnum = g_Instructions[i];
 
 					html += g_InstructionConfig.properties[ operEnum ].displayString;
 
-					// see above TBD
-					//if( i == currentInstruction )
-					//{
-					//	 html += "</b>";
-					//}
+					if( i == g_CurrentInstructionIdx )
+					{
+						 html += "</b>";
+					}
 				}
 
 				return html;
@@ -406,11 +419,32 @@
 
 			function update()
 			{
+
 				// Note: The time elapsed is UPDATE_TIME_STEP as we update in fixed steps
+
+				processInstruction( UPDATE_TIME_STEP );
+
 				if( g_InsetEnabled )
 				{
 					g_InsetCamera.lookAt( g_InsetScene.position );
 				}
+
+				if( typeof(g_Bot) != "undefined" )
+				{
+					g_Bot.rotation.set( 0, g_BotRotation, 0.0, 'XYZ' );
+					
+					if( g_BotMove != 0 )
+					{
+						g_Bot.translateX( g_BotMove );
+
+						g_BotMove = 0; 		// we moved, so reset
+
+			        		g_Camera.updateProjectionMatrix();
+						g_Camera.lookAt( g_Bot.position );
+					}
+				}
+
+
 			}
 
 			function render( )
@@ -482,12 +516,14 @@
 					var instructionObjectClicked = buttonIntersects[ 0 ].object.name;
 					if( instructionObjectClicked == g_InstructionConfig.CLEAR )
 					{
+						g_CurrentInstructionIdx = NO_INSTRUCTION;
 						g_Instructions = [];
 						instructionsUpdated = 1;
 					}
 					else if( instructionObjectClicked == g_InstructionConfig.GO )
 					{
-						// we would start executing the instructions - TBD
+						g_OpTimer = OP_TIME_STEP;
+						g_CurrentInstructionIdx = 0; 		// point to 1st instruction
 					}
 					else
 					{
@@ -498,6 +534,68 @@
 
 				document.getElementById("instructionTextBox").innerHTML = generateInstructionHtml();
 				tailScroll();
+			}
+
+			function processInstruction( deltaTime )
+			{
+				if( g_CurrentInstructionIdx == NO_INSTRUCTION )
+				{
+					// not yet running instructions
+					return;
+				}
+
+				if( g_InterInstructionPause > 0 )
+				{
+					g_InterInstructionPause -= deltaTime;
+					return;
+				}
+		
+				g_OpTimer = g_OpTimer - deltaTime;
+
+				var movementTime = deltaTime;
+				if( g_OpTimer < 0 )
+				{
+					// reduce movement time by amount of overrun
+					movementTime = deltaTime + g_OpTimer;
+				}
+				
+				var rotationThisFrame = movementTime * (ROTATE_STEP / OP_TIME_STEP);
+				var movementThisFrame = movementTime * (MOVE_STEP / OP_TIME_STEP);
+
+				var currentOp = g_Instructions[ g_CurrentInstructionIdx ];
+
+				g_BotMove
+				if( currentOp == g_InstructionConfig.FORWARD )
+				{
+					g_BotMove = movementThisFrame;
+				}
+				else if( currentOp == g_InstructionConfig.BACK )
+				{
+					g_BotMove = -movementThisFrame;
+				}
+				else if( currentOp == g_InstructionConfig.LEFT )
+				{
+					g_BotRotation += rotationThisFrame;
+				}
+				else if( currentOp == g_InstructionConfig.RIGHT )
+				{
+					g_BotRotation -= rotationThisFrame;
+				}
+
+				// move to next instruction if time is up
+				if( g_OpTimer <= 0 )
+				{
+					g_CurrentInstructionIdx++;
+					g_OpTimer = OP_TIME_STEP;
+
+					g_InterInstructionPause = OP_DELAY;
+
+					if( g_CurrentInstructionIdx >= g_Instructions.length )
+					{
+						g_CurrentInstructionIdx = NO_INSTRUCTION;
+						g_OpTimer = 0;
+					}
+				}
 			}
 
 			//
