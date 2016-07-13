@@ -7,3 +7,15 @@ Devices like these follow simple directional instructions which in theory provid
 This project aims to create a three.js based path programmable object much like the BigTrak/BeeBot.
 
 Ian Felstead
+
+
+Notices;
+
+Skybox (textures/sky_twilight.jpg);
+Optikz 2004 (from a post on blenderartists,org)
+
+Cartoon bus model (models/ToonBus_VijayKumar.json & textures/Toon_Bus_Texture.jpg);
+Toon Bus by VijayKumar is licensed under CC Attribution https://skfb.ly/PHVP
+(converted to JSON via Blender & three.js Blender export tool but otherwise untouched)
+
+

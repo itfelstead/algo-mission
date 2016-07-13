@@ -42,6 +42,13 @@
 
 			var g_MouseControls;
 
+			var g_TextureLoader;
+
+			var g_JSONLoader;
+
+			// Texture taken from Optikz 2004 post on blenderartists,org
+			var SKY_TEXTURE = "textures/sky_twilight.jpg";
+
 			// Main Screen Globals
 			var g_Scene;
 			var g_Camera;
@@ -53,6 +60,8 @@
 			var g_Bot;
 			var g_BotMove = 0; 		// Amount to move in particular update
 			var g_BotRotation = 0; 		// Amount to rotate in partucular update
+			var BOT_TEXTURE = "textures/Toon_Bus_Texture.jpg";
+			var BOT_MODEL = "models/ToonBus_VijayKumar.json";
 
 			// Collision Detection
 			var g_Raycaster;
@@ -70,7 +79,6 @@
 			var INSET_LEFT_OFFSET = 0;
 			var INSET_BOTTOM_OFFSET = 10;
 			var INSET_MARGIN = 20;
-			var INSET_COLOUR = 0x4FABC9
 			var INSET_CAM_FOV =30 
 			var INSET_CAM_NEAR = 1;
 			var INSET_CAM_FAR = 1000;
@@ -148,6 +156,8 @@
 
 				addCamera();
 
+				addSky();
+
 				addAmbientLight();
 
 				addMouseControls();
@@ -180,6 +190,10 @@
 				g_Element = g_Renderer.domElement;
 				g_Container = document.getElementById('AlgoMission');
 				g_Container.appendChild(g_Element);
+
+				g_TextureLoader = new THREE.TextureLoader();
+
+				g_JSONLoader = new THREE.JSONLoader();
 
 				g_Scene = new THREE.Scene();
 			}
@@ -216,13 +230,73 @@
 
 			}
 
+			function addSky()
+			{
+				var skyGeo = new THREE.SphereGeometry( 500, 60, 40 );
+				skyGeo.scale( - 1, 1, 1 );
+
+				g_TextureLoader.load( SKY_TEXTURE,
+
+					// on load
+					function( texture )
+					{
+						var material = new THREE.MeshBasicMaterial( { map: texture } );
+						var mesh = new THREE.Mesh( skyGeo, material );
+						g_Scene.add( mesh );
+					},
+					// on download progress
+					function( xhr )
+					{
+						console.log( SKY_TEXTURE + " " + (xhr.loaded / xhr.total * 100) + '% loaded' );
+					},
+					// on error
+					function( xhr )
+					{
+						console.log( 'Error loading sky texture ' + SKY_TEXTURE );
+					}
+				);
+
+			}
+
 			function addBot()
 			{
-				var geo = new THREE.CubeGeometry( 10, 10, 10 );
-				var material = new THREE.MeshNormalMaterial();
-				g_Bot = new THREE.Mesh( geo, material );
+				// var geo = new THREE.CubeGeometry( 10, 10, 10 );
+				// var material = new THREE.MeshNormalMaterial();
+				// g_Bot = new THREE.Mesh( geo, material );
+				// g_Scene.add( g_Bot );
 
-				g_Scene.add( g_Bot );
+				g_TextureLoader.load( BOT_TEXTURE,
+
+					// on load
+					function( texture )
+					{
+						loadBotModel( texture );
+					},
+					// on download progress
+					function( xhr )
+					{
+						console.log( BOT_TEXTURE + " " + (xhr.loaded / xhr.total * 100) + '% loaded' );
+					},
+					// on error
+					function( xhr )
+					{
+						console.log( 'Error loading bot texture ' + BOT_TEXTURE );
+					}
+				);
+			}
+
+			function loadBotModel( texture )
+			{
+				g_JSONLoader.load( BOT_MODEL,
+
+					function( geometry )
+					{
+						var material = new THREE.MeshLambertMaterial( { map: texture } );
+						geometry.scale(  100, 100, 100 );
+						g_Bot = new THREE.Mesh( geometry, material );
+						g_Scene.add( g_Bot );
+					}
+				);
 			}
 
 			function addEventListeners()
@@ -244,8 +318,8 @@
 							"height: " + INSET_CANVAS_HEIGHT + "px; " +
 							"left: " + INSET_LEFT_OFFSET + "px; " +
 							"bottom: " + INSET_BOTTOM_OFFSET + "px;" +
-							"background-color: #fff;" + /* or 'transparent;' */
-							"opacity: 0.5; " + /* affects whole window */
+							"background-color: transparent;" + /* or #fff */
+							"opacity: 1; " + /* affects whole window */
 							"border: none; " + /* or e.g. '2px solid black' */
 							"margin: " + INSET_MARGIN + "px; " +
 							"padding: 0px; " +
@@ -254,7 +328,6 @@
 				g_InsetContainer = document.getElementById( INSET_DIV_NAME );
 				// use 'alpha' to allow transparent inset window
 				g_InsetRenderer = new THREE.WebGLRenderer( { alpha: true } );
-				g_InsetRenderer.setClearColor( INSET_COLOUR , 1);
 				g_InsetRenderer.setSize( INSET_CANVAS_WIDTH, INSET_CANVAS_HEIGHT );
 				g_InsetContainer.appendChild( g_InsetRenderer.domElement );
 				g_InsetScene = new THREE.Scene();
@@ -264,8 +337,6 @@
 										INSET_CAM_FAR );
 				g_InsetCamera.up = g_Camera.up;
         			g_InsetCamera.position.set(0, 0, -50);
-
-				g_InsetScene.add( new THREE.AxisHelper( 50 ) );
 			}
 
 			function addControlPanel( sceneToUpdate )
@@ -286,23 +357,25 @@
 				var offset = (-(gridSize * stepSize) / 2) + (boxSize/2);
 
 				var panelConfig = [
-					{ "id": g_InstructionConfig.FORWARD,    "x": 1, "y": 3, "z": defaultZ, "pic": "forward.png" },
-					{ "id": g_InstructionConfig.BACK,  "x": 1, "y": 1, "z": defaultZ, "pic": "back.png" },
-					{ "id": g_InstructionConfig.LEFT,  "x": 2, "y": 2, "z": defaultZ, "pic": "left.png" },
-					{ "id": g_InstructionConfig.RIGHT, "x": 0, "y": 2, "z": defaultZ, "pic": "right.png" },
-					{ "id": g_InstructionConfig.CLEAR, "x": 2, "y": 0, "z": defaultZ, "pic": "clear.png" },
-					{ "id": g_InstructionConfig.GO,    "x": 0, "y": 0, "z": defaultZ, "pic": "go.png" },
-					{ "id": g_InstructionConfig.FIRE,  "x": 3, "y": 1, "z": defaultZ, "pic": "fire.png" },
-					{ "id": g_InstructionConfig.PAUSE, "x": 1, "y": 2, "z": defaultZ, "pic": "pause.png" }
+					{ "id": g_InstructionConfig.FORWARD,    "x": 1, "y": 3, "z": defaultZ, "pic": "Up256.png" },
+					{ "id": g_InstructionConfig.BACK,  "x": 1, "y": 1, "z": defaultZ, "pic": "Back256.png" },
+					{ "id": g_InstructionConfig.LEFT,  "x": 2, "y": 2, "z": defaultZ, "pic": "Left256.png" },
+					{ "id": g_InstructionConfig.RIGHT, "x": 0, "y": 2, "z": defaultZ, "pic": "Right256.png" },
+					{ "id": g_InstructionConfig.CLEAR, "x": 2, "y": 0, "z": defaultZ, "pic": "Clear256.png" },
+					{ "id": g_InstructionConfig.GO,    "x": 0, "y": 0, "z": defaultZ, "pic": "Go256.png" },
+					{ "id": g_InstructionConfig.FIRE,  "x": 3, "y": 1, "z": defaultZ, "pic": "Fire256.png" },
+					{ "id": g_InstructionConfig.PAUSE, "x": 1, "y": 2, "z": defaultZ, "pic": "Stop256.png" }
 				];
 
 				
 				for (var i = 0; i < panelConfig.length; i++) 
 				{
 					var buttonConfig = panelConfig[i];
+					var picture = buttonConfig.pic;
+					var texture = g_TextureLoader.load( "textures/" + picture );
 
 					var buttonGeo = new THREE.BoxGeometry( boxSize, boxSize, 0.1 );
-					var buttonMaterial = new THREE.MeshBasicMaterial( {color: 0x0000ff} );
+					var buttonMaterial = new THREE.MeshBasicMaterial( {map: texture } );
 					var buttonMesh = new THREE.Mesh( buttonGeo, buttonMaterial );
 
 					buttonMesh.position.set( offset + (buttonConfig.x*stepSize), offset + (buttonConfig.y*stepSize), buttonConfig.z );
