@@ -58,10 +58,40 @@
 
 			// Bot
 			var g_Bot;
+			var g_BotLength = 0; 		// we base g_BotMove and g_TileLength on this bot size
 			var g_BotMove = 0; 		// Amount to move in particular update
 			var g_BotRotation = 0; 		// Amount to rotate in partucular update
 			var BOT_TEXTURE = "textures/Toon_Bus_Texture.jpg";
 			var BOT_MODEL = "models/ToonBus_VijayKumar.json";
+
+
+			var g_MapObjects = [];
+			var g_TileLength = 0; 		// updated after bot is loaded
+			var TILE_BORDER = 4; 		// make tile this much*2 longer than g_BotLength
+			var TILE_HEIGHT = 0.1;
+
+			// Positioning:
+			// 	All tile positions are relative to the start tile (at 0,0) 
+			//      (on which the bus will be placed).
+			//      Positions should be unique i.e. only one tile in a particular spot
+			//	Positions values will be translated to world coordinates
+			var g_Maps = [
+				{
+					name: "simple map test",
+					instructions: "pickup person", 
+					tiles: [
+						// Start; 0, 0  means start: all other tiles are relative to start
+						{ x: 0, z: 0, texture: 'busstation.png' },
+						{ x: 0, z: 1, texture: 'roadz.png' },
+						{ x: 0, z: 2, texture: 'roadcross.png' },
+						{ x: 1, z: 2, texture: 'roadx.png' },
+						{ x:-1, z: 2, texture: 'roadx.png' },
+						{ x:-2, z: 2, texture: 'shop.png' },
+						{ x: 2, z: 2, texture: 'busstopx.png' }
+					]
+				}
+				// other maps here
+			];
 
 			// Collision Detection
 			var g_Raycaster;
@@ -121,9 +151,9 @@
 			// Instruction operation processing
 			var NO_INSTRUCTION = -1;
 			var ROTATE_STEP = 90 * Math.PI/180; 	// Turn by 90 degrees (in radians)
-			var MOVE_STEP = 10; 			// Move by 10 units
-			var OP_TIME_STEP = 2; 			// Take 2 secs per instruction
-			var OP_DELAY = 0.5; 			// half second delay between operations
+			var MOVE_STEP = 25; 			// units to move by (over OP_TIME_STEP seconds)
+			var OP_TIME_STEP = 2; 			// time in secs to execute an instruction
+			var OP_DELAY = 0.5; 			// delay between operations
 
 			var g_OpTimer = 0; 			// How log operation has run for
 			var g_CurrentInstructionIdx = NO_INSTRUCTION; 	// index into g_Instructions
@@ -170,6 +200,20 @@
 
 				addBot();
 
+				// We use the calculated bot length to size the tiles
+				// so wait until the model has loaded and the length
+				// has been calculated
+				var myInterval = setInterval( function(){
+					if( g_BotLength > 0 )
+				    	{
+						createMapObjects( 0 );
+						setMapVisibility( 1 );
+
+						clearInterval( myInterval );
+					}
+				}, 100 );
+
+
 				setupGameLoop();
 
 				setupCollisionDetection();
@@ -202,7 +246,7 @@
 			{
 				g_Camera = new THREE.PerspectiveCamera(90, 1, 0.001, 1700);
 				// look over bots shoulder
-        			g_Camera.position.set(0, 20, -50);
+        			g_Camera.position.set(0, 60, -40);
 	        		g_Camera.lookAt( new THREE.Vector3(0,0,0) );
 		        	g_Scene.add(g_Camera);
 			}
@@ -295,8 +339,21 @@
 						geometry.scale(  100, 100, 100 );
 						g_Bot = new THREE.Mesh( geometry, material );
 						g_Scene.add( g_Bot );
+
+						adjustMeasurementsToBotLength();
 					}
 				);
+			}
+
+			function adjustMeasurementsToBotLength()
+			{
+				var boundingBox = new THREE.Box3().setFromObject( g_Bot );
+				var boxSize = boundingBox.size();
+
+				g_BotLength = boxSize.z;
+
+				g_BoxMove = g_BotLength + (TILE_BORDER*2);
+				g_TileLength = g_BotLength + (TILE_BORDER*2);
 			}
 
 			function addEventListeners()
@@ -461,6 +518,54 @@
 				document.addEventListener( 'touchstart', onDocumentTouchStart, false );
 			}
 
+			function createMapObjects( mapId )
+			{
+				var mapDef = g_Maps[ mapId ];
+				var tiles = mapDef.tiles;
+
+				var stdTileGeo = new THREE.BoxGeometry( g_TileLength, TILE_HEIGHT, g_TileLength );
+
+				for( var i = 0; i < tiles.length; i++ )
+				{
+					var tileDef = tiles[i];
+
+					var texture = g_TextureLoader.load( "textures/" + tileDef.texture );
+					var material = new THREE.MeshLambertMaterial( {map: texture} );
+					var tileObject = new THREE.Mesh( stdTileGeo, material );
+
+					translateTilePosition( tileObject, tileDef.x, tileDef.z );
+
+					tileObject.name = "Tile_" + i;
+					
+					g_MapObjects.push( tileObject );
+				}
+			}
+
+			function translateTilePosition( tileObject, relativeX, relativeZ )
+			{
+				var x = relativeX * g_TileLength;
+				var y = 0; 	// TBD: Only supporting a single height at this point
+				var z = relativeZ * g_TileLength;
+
+				tileObject.position.set( x, y, z );
+			}
+
+			function setMapVisibility( isVisible )
+			{
+				for( var i = 0; i < g_MapObjects.length; i++ )
+				{
+					var tileObject = g_MapObjects[i];
+					if( isVisible == 1 )
+					{
+						g_Scene.add( tileObject );
+					}
+					else
+					{
+						g_Scene.remove( tileObject );
+					}
+				}
+			}
+
 			//
 			// Game Loop
 			//
@@ -508,7 +613,7 @@
 					
 					if( g_BotMove != 0 )
 					{
-						g_Bot.translateX( g_BotMove );
+						g_Bot.translateZ( g_BotMove );
 
 						g_BotMove = 0; 		// we moved, so reset
 
