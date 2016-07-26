@@ -81,13 +81,14 @@
 					instructions: "pickup person", 
 					tiles: [
 						// Start; 0, 0  means start: all other tiles are relative to start
-						{ x: 0, z: 0, texture: 'busstation.png' },
-						{ x: 0, z: 1, texture: 'roadz.png' },
-						{ x: 0, z: 2, texture: 'roadcross.png' },
-						{ x: 1, z: 2, texture: 'roadx.png' },
-						{ x:-1, z: 2, texture: 'roadx.png' },
-						{ x:-2, z: 2, texture: 'shop.png' },
-						{ x: 2, z: 2, texture: 'busstopx.png' }
+						{ x: 0, z:-1, texture: 'road/256_tear_bottom.png' },
+						{ x: 0, z: 0, texture: 'road/256_vertical.png' }, 	// start pos
+						{ x: 0, z: 1, texture: 'road/256_vertical.png' },
+						{ x: 0, z: 2, texture: 'road/256_tjunct_horizontal_up.png' },
+						{ x: 1, z: 2, texture: 'road/256_horizontal.png' },
+						{ x:-1, z: 2, texture: 'road/256_horizontal.png' },
+						{ x:-2, z: 2, texture: 'road/256_left_tear.png' },
+						{ x: 2, z: 2, texture: 'road/256_right_tear.png' }
 					]
 				}
 				// other maps here
@@ -151,7 +152,7 @@
 			// Instruction operation processing
 			var NO_INSTRUCTION = -1;
 			var ROTATE_STEP = 90 * Math.PI/180; 	// Turn by 90 degrees (in radians)
-			var MOVE_STEP = 25; 			// units to move by (over OP_TIME_STEP seconds)
+			var g_MoveStep = 0; 			// units to move by (over OP_TIME_STEP seconds). Will update based on bot length
 			var OP_TIME_STEP = 2; 			// time in secs to execute an instruction
 			var OP_DELAY = 0.5; 			// delay between operations
 
@@ -352,7 +353,7 @@
 
 				g_BotLength = boxSize.z;
 
-				g_BoxMove = g_BotLength + (TILE_BORDER*2);
+				g_MoveStep = g_BotLength + (TILE_BORDER*2);
 				g_TileLength = g_BotLength + (TILE_BORDER*2);
 			}
 
@@ -529,9 +530,24 @@
 				{
 					var tileDef = tiles[i];
 
+					var borderMaterial = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.0 });
 					var texture = g_TextureLoader.load( "textures/" + tileDef.texture );
-					var material = new THREE.MeshLambertMaterial( {map: texture} );
-					var tileObject = new THREE.Mesh( stdTileGeo, material );
+					var topMaterial = new THREE.MeshBasicMaterial( {map: texture, transparent: true} );
+
+					// TBD clone() doesn't seem to be working.. so doing a duplicate load for not.
+					// var flippedTexture = texture.clone();
+					var flippedTexture = g_TextureLoader.load( "textures/" + tileDef.texture );
+					flippedTexture.flipY = false;
+					var bottomMaterial = new THREE.MeshBasicMaterial( {map: flippedTexture, transparent: true} );
+
+					var materials = [
+						borderMaterial, borderMaterial,	// left, right
+						topMaterial, bottomMaterial, 	// top, bottom
+						borderMaterial, borderMaterial 	// front, back
+					];
+					var boxMaterial = new THREE.MeshFaceMaterial(materials); 
+
+					var tileObject = new THREE.Mesh( stdTileGeo, boxMaterial );
 
 					translateTilePosition( tileObject, tileDef.x, tileDef.z );
 
@@ -738,7 +754,7 @@
 				}
 				
 				var rotationThisFrame = movementTime * (ROTATE_STEP / OP_TIME_STEP);
-				var movementThisFrame = movementTime * (MOVE_STEP / OP_TIME_STEP);
+				var movementThisFrame = movementTime * (g_MoveStep / OP_TIME_STEP);
 
 				var currentOp = g_Instructions[ g_CurrentInstructionIdx ];
 

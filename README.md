@@ -12,10 +12,17 @@ Ian Felstead
 Notices;
 
 Skybox (textures/sky_twilight.jpg);
-Optikz 2004 (from a post on blenderartists,org)
+Optikz 2004 (from a post on blenderartists.org)
 
 Cartoon bus model (models/ToonBus_VijayKumar.json & textures/Toon_Bus_Texture.jpg);
 Toon Bus by VijayKumar is licensed under CC Attribution https://skfb.ly/PHVP
 (converted to JSON via Blender & three.js Blender export tool but otherwise untouched)
 
+Button art (textures/*.png);
+From http://www.clipartpanda.com/
+
+Road art (textures/road/*)
+Modified version of Road_test.png from www.adebgamesoft.be
+http://creativecommons.org/publicdomain/zero/1.0/
+(http://opengameart.org/content/top-down-road-tileset)
 
