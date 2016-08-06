@@ -34,12 +34,16 @@
 		<script src="thirdparty/threejs/three.min.js"></script>
 		<script src="thirdparty/threejs/orbitcontrols.js"></script>
 
+		<script src="botclass.js"></script>
+		
+
 		<script>
-
-			// ---------------
-
+			"use strict;"
+			
+			// Global Namespace
+			var ALGO = ALGO || {};
+			
 			const VERSION = 0.01;
-
 
 			var g_MouseControls;
 
@@ -58,17 +62,12 @@
 			var g_Container;
 
 			// Bot
-			var g_Bot;
-			var g_BotLength = 0; 		// we base g_BotMove and g_TileLength on this bot size
-			var g_BotMove = 0; 		// Amount to move in particular update
-			var g_BotRotation = 0; 		// Amount to rotate in partucular update
-			var BOT_TEXTURE = "textures/Toon_Bus_Texture.jpg";
-			var BOT_MODEL = "models/ToonBus_VijayKumar.json";
+			var g_Bot;	
 
 
 			var g_MapObjects = [];
 			var g_TileLength = 0; 		// updated after bot is loaded
-			var TILE_BORDER = 4; 		// make tile this much*2 longer than g_BotLength
+			var TILE_BORDER = 4; 		// make tile this much*2 longer than g_Bot.length
 			var TILE_HEIGHT = 0.1;
 
 			// Positioning:
@@ -202,13 +201,13 @@
 				
 				addAxisHelper();
 
-				addBot();
+				addBot( botCreatedCb );
 
 				// We use the calculated bot length to size the tiles
 				// so wait until the model has loaded and the length
 				// has been calculated
 				var myInterval = setInterval( function(){
-					if( g_BotLength > 0 )
+					if( g_Bot.modelLength > 0 )
 				    	{
 						createMapObjects( 0 );
 						setMapVisibility( 1 );
@@ -259,11 +258,11 @@
 
 			function addMouseControls()
 			{
-        			g_MouseControls = new THREE.OrbitControls(g_Camera, g_Element);
-        			// g_MouseControls.rotateUp(Math.PI / 4);
+				g_MouseControls = new THREE.OrbitControls(g_Camera, g_Element);
+				// g_MouseControls.rotateUp(Math.PI / 4);
 
-                                // Rotate about the center. 
-	        		g_MouseControls.target.set( 0, 0, 0 );
+				// Rotate about the center. 
+				g_MouseControls.target.set( 0, 0, 0 );
 
 				// Future note: If you wanted a VR like rotation then change
 				// to rotate about camera position (plus a small offset) instead
@@ -308,58 +307,26 @@
 
 			}
 
-			function addBot()
+			// calls botCb() when bot is ready
+			function addBot( botCb )
 			{
-				// var geo = new THREE.CubeGeometry( 10, 10, 10 );
-				// var material = new THREE.MeshNormalMaterial();
-				// g_Bot = new THREE.Mesh( geo, material );
-				// g_Scene.add( g_Bot );
-
-				g_TextureLoader.load( BOT_TEXTURE,
-
-					// on load
-					function( texture )
-					{
-						loadBotModel( texture );
-					},
-					// on download progress
-					function( xhr )
-					{
-						console.log( BOT_TEXTURE + " " + (xhr.loaded / xhr.total * 100) + '% loaded' );
-					},
-					// on error
-					function( xhr )
-					{
-						console.log( 'Error loading bot texture ' + BOT_TEXTURE );
-					}
-				);
+				g_Bot = new Bot();
+				g_Bot.load( "models/ToonBus_VijayKumar.json", 
+								"textures/Toon_Bus_Texture.jpg", 
+								g_JSONLoader, g_TextureLoader, botCb );
 			}
-
-			function loadBotModel( texture )
+			
+			function botCreatedCb()
 			{
-				g_JSONLoader.load( BOT_MODEL,
-
-					function( geometry )
-					{
-						var material = new THREE.MeshLambertMaterial( { map: texture } );
-						geometry.scale(  100, 100, 100 );
-						g_Bot = new THREE.Mesh( geometry, material );
-						g_Scene.add( g_Bot );
-
-						adjustMeasurementsToBotLength();
-					}
-				);
+				g_Scene.add( g_Bot.mesh );
+				g_Bot.myTest = "set it";
+				adjustMeasurementsToBotLength();
 			}
 
 			function adjustMeasurementsToBotLength()
 			{
-				var boundingBox = new THREE.Box3().setFromObject( g_Bot );
-				var boxSize = boundingBox.size();
-
-				g_BotLength = boxSize.z;
-
-				g_MoveStep = g_BotLength + (TILE_BORDER*2);
-				g_TileLength = g_BotLength + (TILE_BORDER*2);
+				g_MoveStep = g_Bot.modelLength + (TILE_BORDER*2);
+				g_TileLength = g_Bot.modelLength + (TILE_BORDER*2);
 			}
 
 			function addEventListeners()
@@ -701,18 +668,18 @@
 					g_InsetCamera.lookAt( g_InsetScene.position );
 				}
 
-				if( typeof(g_Bot) != "undefined" )
+				if( typeof(g_Bot.mesh) != "undefined" )
 				{
-					g_Bot.rotation.set( 0, g_BotRotation, 0.0, 'XYZ' );
+					g_Bot.mesh.rotation.set( 0, g_Bot.rotation, 0.0, 'XYZ' );
 					
-					if( g_BotMove != 0 )
+					if( g_Bot.move != 0 )
 					{
-						g_Bot.translateZ( g_BotMove );
+						g_Bot.mesh.translateZ( g_Bot.move );
 
-						g_BotMove = 0; 		// we moved, so reset
+						g_Bot.move = 0; 		// we moved, so reset
 
-			        		g_Camera.updateProjectionMatrix();
-						g_Camera.lookAt( g_Bot.position );
+			        	g_Camera.updateProjectionMatrix();
+						g_Camera.lookAt( g_Bot.mesh.position );
 					}
 				}
 
@@ -836,22 +803,21 @@
 
 				var currentOp = g_Instructions[ g_CurrentInstructionIdx ];
 
-				g_BotMove
 				if( currentOp == g_InstructionConfig.FORWARD )
 				{
-					g_BotMove = movementThisFrame;
+					g_Bot.move = movementThisFrame;
 				}
 				else if( currentOp == g_InstructionConfig.BACK )
 				{
-					g_BotMove = -movementThisFrame;
+					g_Bot.move = -movementThisFrame;
 				}
 				else if( currentOp == g_InstructionConfig.LEFT )
 				{
-					g_BotRotation += rotationThisFrame;
+					g_Bot.rotation += rotationThisFrame;
 				}
 				else if( currentOp == g_InstructionConfig.RIGHT )
 				{
-					g_BotRotation -= rotationThisFrame;
+					g_Bot.rotation -= rotationThisFrame;
 				}
 
 				// move to next instruction if time is up
