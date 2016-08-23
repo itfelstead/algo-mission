@@ -4,7 +4,7 @@
 	Author: Ian Felstead
 */
 
-"use strict;"
+"use strict";
  
 /**
  * @namespace The algo-mission namespace
@@ -60,7 +60,7 @@ Bot.prototype.load = function( model, texture, jsonLoader, textureLoader, isCrea
 	
 	var instance = this; 	// so we can access bot inside anon-function
 	
-	g_JSONLoader.load( model, function (geometry) {
+	jsonLoader.load( model, function (geometry) {
 
 		geometry.scale(  100, 100, 100 );
 	
