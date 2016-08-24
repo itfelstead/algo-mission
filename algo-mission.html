@@ -36,7 +36,8 @@
 
 		<script src="botclass.js"></script>
 		<script src="missionmapclass.js"></script>
-
+		<script src="instructionclass.js"></script>
+		
 		<script>
 			"use strict";
 			
@@ -68,6 +69,8 @@
 			var g_MapManager;
 			var g_MapLoaded = false;
 
+			var g_InstructionMgr;			
+			
 			var TILE_BORDER = 4; 		// make tile this much*2 longer than g_Bot.length
 
 			// Collision Detection
@@ -99,41 +102,15 @@
 			// Control Panel
 			var g_ControlPanelObjects; 	// an array of buttons (meshes)
 
-			// Instructions
-			var g_InstructionConfig = {
-			   FORWARD: 1,
-			   BACK: 2,
-			   LEFT: 3,
-			   RIGHT: 4,
-			   GO: 5,
-			   FIRE: 6,
-			   PAUSE: 7,
-			   CLEAR: 8,
-
-			   properties: {
-				1: {displayString: "forward<p>", value: 1},
-				2: {displayString: "back<p>", value: 2},
-			       	3: {displayString: "left<p>", value: 3},
-			       	4: {displayString: "right<p>", value: 4},               
-			       	5: {displayString: "go<p>", value: 5},
-			       	6: {displayString: "fire!<p>", value: 6},
-			       	7: {displayString: "pause..<p>", value: 7},
-			       	8: {displayString: "", value: 8}
-			   }
-			};
-
-			var g_Instructions = [];
-			var g_InstructionHtml = "<b>Instructions:<b><p>";
-
 			// Instruction operation processing
-			var NO_INSTRUCTION = -1;
+
 			var ROTATE_STEP = 90 * Math.PI/180; 	// Turn by 90 degrees (in radians)
 			var g_MoveStep = 0; 			// units to move by (over OP_TIME_STEP seconds). Will update based on bot length
 			var OP_TIME_STEP = 2; 			// time in secs to execute an instruction
 			var OP_DELAY = 0.5; 			// delay between operations
 
 			var g_OpTimer = 0; 			// How log operation has run for
-			var g_CurrentInstructionIdx = NO_INSTRUCTION; 	// index into g_Instructions
+
 			var g_InterInstructionPause = 0;
 			
 
@@ -173,7 +150,9 @@
 				
 				addInsetWindow();
 
-				addControlPanel( g_InsetScene );
+				addInstructionManager();			
+
+				addControlPanel( g_InsetScene ); 	// requires m_InstructionMgr
 				
 				addAxisHelper();
 
@@ -181,8 +160,8 @@
 				addBot( botCreatedCb );
 				
 				g_MapLoaded = false;
-				addMapManager( g_TextureLoader );				
-
+				addMapManager( g_TextureLoader );
+				
 				// We use the calculated bot length to size the tiles
 				// so wait until the model has loaded and the length
 				// has been calculated
@@ -309,7 +288,12 @@
 				g_MapManager = new MapManager( textureLoader );	
 				g_MapLoaded = true;
 			}
-
+			
+			function addInstructionManager( )
+			{
+				g_InstructionMgr = new InstructionManager( );	
+			}
+			
 			function addEventListeners()
 			{
 				window.addEventListener('resize', handleResize, false);
@@ -372,14 +356,14 @@
 				var offset = (-(gridSize * stepSize) / 2) + (boxSize/2);
 
 				var panelConfig = [
-					{ "id": g_InstructionConfig.FORWARD,    "x": 1, "y": 3, "z": defaultZ, "pic": "Up256.png" },
-					{ "id": g_InstructionConfig.BACK,  "x": 1, "y": 1, "z": defaultZ, "pic": "Back256.png" },
-					{ "id": g_InstructionConfig.LEFT,  "x": 2, "y": 2, "z": defaultZ, "pic": "Left256.png" },
-					{ "id": g_InstructionConfig.RIGHT, "x": 0, "y": 2, "z": defaultZ, "pic": "Right256.png" },
-					{ "id": g_InstructionConfig.CLEAR, "x": 2, "y": 0, "z": defaultZ, "pic": "Clear256.png" },
-					{ "id": g_InstructionConfig.GO,    "x": 0, "y": 0, "z": defaultZ, "pic": "Go256.png" },
-					{ "id": g_InstructionConfig.FIRE,  "x": 3, "y": 1, "z": defaultZ, "pic": "Fire256.png" },
-					{ "id": g_InstructionConfig.PAUSE, "x": 1, "y": 2, "z": defaultZ, "pic": "Stop256.png" }
+					{ "id": g_InstructionMgr.instructionConfig.FORWARD,    "x": 1, "y": 3, "z": defaultZ, "pic": "Up256.png" },
+					{ "id": g_InstructionMgr.instructionConfig.BACK,  "x": 1, "y": 1, "z": defaultZ, "pic": "Back256.png" },
+					{ "id": g_InstructionMgr.instructionConfig.LEFT,  "x": 2, "y": 2, "z": defaultZ, "pic": "Left256.png" },
+					{ "id": g_InstructionMgr.instructionConfig.RIGHT, "x": 0, "y": 2, "z": defaultZ, "pic": "Right256.png" },
+					{ "id": g_InstructionMgr.instructionConfig.CLEAR, "x": 2, "y": 0, "z": defaultZ, "pic": "Clear256.png" },
+					{ "id": g_InstructionMgr.instructionConfig.GO,    "x": 0, "y": 0, "z": defaultZ, "pic": "Go256.png" },
+					{ "id": g_InstructionMgr.instructionConfig.FIRE,  "x": 3, "y": 1, "z": defaultZ, "pic": "Fire256.png" },
+					{ "id": g_InstructionMgr.instructionConfig.PAUSE, "x": 1, "y": 2, "z": defaultZ, "pic": "Stop256.png" }
 				];
 
 				
@@ -505,31 +489,7 @@
 				document.body.appendChild(instructionDiv);
 			}
 
-			function generateInstructionHtml()
-			{
 
-				var html = "<b>Instructions<b><p>";
-				
-				var numInstructions = g_Instructions.length;
-				for( var i = 0; i < numInstructions; i++ )
-				{
-					if( i == g_CurrentInstructionIdx )
-					{
-						 html += "<b>";
-					}
-
-					var operEnum = g_Instructions[i];
-
-					html += g_InstructionConfig.properties[ operEnum ].displayString;
-
-					if( i == g_CurrentInstructionIdx )
-					{
-						 html += "</b>";
-					}
-				}
-
-				return html;
-			}
 
 			function tailScroll()
 			{
@@ -665,35 +625,32 @@
 				if( buttonIntersects.length > 0 )
 				{
 					// Intersection detected
-					var objectClicked = buttonIntersects[ 0 ].object.name;
-					console.log( "object " + buttonIntersects[ 0 ].object.name + " clicked");
-
-					var instructionObjectClicked = buttonIntersects[ 0 ].object.name;
-					if( instructionObjectClicked == g_InstructionConfig.CLEAR )
+					var instructionClicked = buttonIntersects[ 0 ].object.name;
+					if( instructionClicked == g_InstructionMgr.instructionConfig.CLEAR )
 					{
-						g_CurrentInstructionIdx = NO_INSTRUCTION;
-						g_Instructions = [];
+						g_InstructionMgr.clearInstructions();
+						
 						instructionsUpdated = 1;
 					}
-					else if( instructionObjectClicked == g_InstructionConfig.GO )
+					else if( instructionClicked == g_InstructionMgr.instructionConfig.GO )
 					{
 						g_OpTimer = OP_TIME_STEP;
-						g_CurrentInstructionIdx = 0; 		// point to 1st instruction
+						g_InstructionMgr.startInstructions();	
 					}
 					else
 					{
-						g_Instructions.push( objectClicked );
+						g_InstructionMgr.addInstruction( instructionClicked );
 						instructionsUpdated = 1;
 					}
 				}
 
-				document.getElementById("instructionTextBox").innerHTML = generateInstructionHtml();
+				document.getElementById("instructionTextBox").innerHTML = g_InstructionMgr.generateInstructionHtml();
 				tailScroll();
 			}
 
 			function processInstruction( deltaTime )
 			{
-				if( g_CurrentInstructionIdx == NO_INSTRUCTION )
+				if( !g_InstructionMgr.isRunning() )
 				{
 					// not yet running instructions
 					return;
@@ -717,21 +674,21 @@
 				var rotationThisFrame = movementTime * (ROTATE_STEP / OP_TIME_STEP);
 				var movementThisFrame = movementTime * (g_MoveStep / OP_TIME_STEP);
 
-				var currentOp = g_Instructions[ g_CurrentInstructionIdx ];
+				var currentOp = g_InstructionMgr.currentInstruction(); 
 
-				if( currentOp == g_InstructionConfig.FORWARD )
+				if( currentOp == g_InstructionMgr.instructionConfig.FORWARD )
 				{
 					g_Bot.move = movementThisFrame;
 				}
-				else if( currentOp == g_InstructionConfig.BACK )
+				else if( currentOp == g_InstructionMgr.instructionConfig.BACK )
 				{
 					g_Bot.move = -movementThisFrame;
 				}
-				else if( currentOp == g_InstructionConfig.LEFT )
+				else if( currentOp == g_InstructionMgr.instructionConfig.LEFT )
 				{
 					g_Bot.rotation += rotationThisFrame;
 				}
-				else if( currentOp == g_InstructionConfig.RIGHT )
+				else if( currentOp == g_InstructionMgr.instructionConfig.RIGHT )
 				{
 					g_Bot.rotation -= rotationThisFrame;
 				}
@@ -739,14 +696,14 @@
 				// move to next instruction if time is up
 				if( g_OpTimer <= 0 )
 				{
-					g_CurrentInstructionIdx++;
+					g_InstructionMgr.nextInstruction();
+					
 					g_OpTimer = OP_TIME_STEP;
 
 					g_InterInstructionPause = OP_DELAY;
 
-					if( g_CurrentInstructionIdx >= g_Instructions.length )
+					if( !g_InstructionMgr.isRunning())
 					{
-						g_CurrentInstructionIdx = NO_INSTRUCTION;
 						g_OpTimer = 0;
 					}
 				}
