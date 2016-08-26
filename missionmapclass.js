@@ -242,3 +242,13 @@ MapManager.prototype.removeMapFromScene = function ( sceneToUpdate )
 		sceneToUpdate.remove( tileObject );
 	}
 };
+
+/**
+* update()
+* 
+*
+*/
+MapManager.prototype.update = function ( timeElapsed )
+{
+	// TODO animate the map?	
+}

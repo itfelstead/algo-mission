@@ -207,3 +207,13 @@ InstructionManager.prototype.nextInstruction = function()
 	}
 	return this.instructions[ this.instructionPtr ];
 }
+
+/**
+* numInstructions()
+* 
+* 
+*/
+InstructionManager.prototype.numInstructions = function()
+{
+	return 	this.instructions.length;
+}

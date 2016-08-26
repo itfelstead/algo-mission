@@ -66,36 +66,22 @@
 			// Bot
 			var g_Bot;	
 			var g_BotLoaded = false;
-			
+
 			var g_MapManager;
 			var g_MapLoaded = false;
 
 			var g_InstructionMgr;	
-			
+		
 			var g_ControlPanel;		
 			
-			var TILE_BORDER = 4; 		// make tile this much*2 longer than g_Bot.length
-
 			// Collision Detection
 			var g_Raycaster;
-
 
 			// Game Loop Globals
 			const UPDATE_TIME_STEP = 0.033; // 33ms = approx 30 FPS
 			var g_Clock;
 			var g_Lag = 0; 	// used in game loop for fixed step update
 
-			// Instruction operation processing
-
-			var ROTATE_STEP = 90 * Math.PI/180; 	// Turn by 90 degrees (in radians)
-			var g_MoveStep = 0; 			// units to move by (over OP_TIME_STEP seconds). Will update based on bot length
-			var OP_TIME_STEP = 2; 			// time in secs to execute an instruction
-			var OP_DELAY = 0.5; 			// delay between operations
-
-			var g_OpTimer = 0; 			// How log operation has run for
-
-			var g_InterInstructionPause = 0;
-			
 			// Main
 
 			console.log( "algo-mission v" + VERSION + " starting..." );
@@ -134,7 +120,7 @@
 				addAxisHelper();
 
 				g_BotLoaded = false;
-				addBot( botCreatedCb );
+				addBot( g_InstructionMgr, botCreatedCb );
 				
 				g_MapLoaded = false;
 				addMapManager( g_TextureLoader );
@@ -145,9 +131,8 @@
 				var myInterval = setInterval( function(){
 					if( g_BotLoaded == true && g_MapLoaded == true )
 				    {
-						// adjust measurements according to Bot length
-						g_MoveStep = g_Bot.modelLength + (TILE_BORDER*2);
-						g_MapManager.resize( g_MoveStep, 0.1 );
+						// adjust map and bot step measurements according to Bot length
+						g_MapManager.resize( g_Bot.getStepSize(), 0.1 );
 						
 						g_MapManager.loadMap();		
 						g_MapManager.addMapToScene( g_Scene );
@@ -190,15 +175,14 @@
 			{
 				g_Camera = new THREE.PerspectiveCamera(90, 1, 0.001, 1700);
 				// look over bots shoulder
-        			g_Camera.position.set(0, 60, -40);
-	        		g_Camera.lookAt( new THREE.Vector3(0,0,0) );
-		        	g_Scene.add(g_Camera);
+				g_Camera.position.set(0, 60, -40);
+				g_Camera.lookAt( new THREE.Vector3(0,0,0) );
+				g_Scene.add(g_Camera);
 			}
 
 			function addMouseControls()
 			{
 				g_MouseControls = new THREE.OrbitControls(g_Camera, g_Element);
-				// g_MouseControls.rotateUp(Math.PI / 4);
 
 				// Rotate about the center. 
 				g_MouseControls.target.set( 0, 0, 0 );
@@ -215,7 +199,6 @@
 			{
 				var white = 0xA0A0A0;
 				g_Scene.add( new THREE.AmbientLight(white) );
-
 			}
 
 			function addSky()
@@ -246,9 +229,9 @@
 			}
 
 			// calls botCb() when bot is ready
-			function addBot( botCb )
+			function addBot( instructionMgr, botCb )
 			{
-				g_Bot = new Bot();
+				g_Bot = new Bot( instructionMgr );
 				g_Bot.load( "models/ToonBus_VijayKumar.json", 
 								"textures/Toon_Bus_Texture.jpg", 
 								g_JSONLoader, g_TextureLoader, botCb );
@@ -392,26 +375,20 @@
 
 			function update()
 			{
-
 				// Note: The time elapsed is UPDATE_TIME_STEP as we update in fixed steps
 
-				processInstruction( UPDATE_TIME_STEP );
+				updateInstruction();
 
-				g_ControlPanel.updateCamera();
+				g_ControlPanel.update( UPDATE_TIME_STEP );
 
+				g_Bot.update( UPDATE_TIME_STEP )
+
+				g_MapManager.update();
+				
 				if( g_Bot.mesh != null && typeof(g_Bot.mesh) != "undefined" )
 				{
-					g_Bot.mesh.rotation.set( 0, g_Bot.rotation, 0.0, 'XYZ' );
-					
-					if( g_Bot.move != 0 )
-					{
-						g_Bot.mesh.translateZ( g_Bot.move );
-
-						g_Bot.move = 0; 		// we moved, so reset
-
-			        	g_Camera.updateProjectionMatrix();
-						g_Camera.lookAt( g_Bot.mesh.position );
-					}
+		        	g_Camera.updateProjectionMatrix();
+					g_Camera.lookAt( g_Bot.mesh.position );
 				}
 			}
 
@@ -451,10 +428,13 @@
 				// Check for instruction button presses
 				//
 				var instructionsUpdated = 0;
-				var instructionClicked = g_ControlPanel.detectInstructionPress( event.clientX, event.clientY, mainElement.clientHeight, g_Raycaster );
+				var instructionClicked = 
+						g_ControlPanel.detectInstructionPress( event.clientX, event.clientY, 
+																mainElement.clientHeight, g_Raycaster );
 				
 				if( instructionClicked )
 				{
+					// We handle CLEAR and GO here, others are added to the instruction list
 					if( instructionClicked == g_InstructionMgr.instructionConfig.CLEAR )
 					{
 						if( !g_InstructionMgr.isRunning() )
@@ -466,9 +446,10 @@
 					}
 					else if( instructionClicked == g_InstructionMgr.instructionConfig.GO )
 					{
-						if( !g_InstructionMgr.isRunning() )
+						if( !g_InstructionMgr.isRunning() && g_InstructionMgr.numInstructions() > 0 )
 						{
-							g_OpTimer = OP_TIME_STEP;
+							g_Bot.prepareForNewInstruction();
+							
 							g_InstructionMgr.startInstructions();	
 						}
 					}
@@ -482,63 +463,15 @@
 				g_InstructionMgr.updateWindow();
 			}
 
-			function processInstruction( deltaTime )
+			function updateInstruction()
 			{
-				if( !g_InstructionMgr.isRunning() )
+				if( g_InstructionMgr.isRunning() )
 				{
-					// not yet running instructions
-					return;
-				}
-
-				if( g_InterInstructionPause > 0 )
-				{
-					g_InterInstructionPause -= deltaTime;
-					return;
-				}
-		
-				g_OpTimer = g_OpTimer - deltaTime;
-
-				var movementTime = deltaTime;
-				if( g_OpTimer < 0 )
-				{
-					// reduce movement time by amount of overrun
-					movementTime = deltaTime + g_OpTimer;
-				}
-				
-				var rotationThisFrame = movementTime * (ROTATE_STEP / OP_TIME_STEP);
-				var movementThisFrame = movementTime * (g_MoveStep / OP_TIME_STEP);
-
-				var currentOp = g_InstructionMgr.currentInstruction(); 
-
-				if( currentOp == g_InstructionMgr.instructionConfig.FORWARD )
-				{
-					g_Bot.move = movementThisFrame;
-				}
-				else if( currentOp == g_InstructionMgr.instructionConfig.BACK )
-				{
-					g_Bot.move = -movementThisFrame;
-				}
-				else if( currentOp == g_InstructionMgr.instructionConfig.LEFT )
-				{
-					g_Bot.rotation += rotationThisFrame;
-				}
-				else if( currentOp == g_InstructionMgr.instructionConfig.RIGHT )
-				{
-					g_Bot.rotation -= rotationThisFrame;
-				}
-
-				// move to next instruction if time is up
-				if( g_OpTimer <= 0 )
-				{
-					g_InstructionMgr.nextInstruction();
-					
-					g_OpTimer = OP_TIME_STEP;
-
-					g_InterInstructionPause = OP_DELAY;
-
-					if( !g_InstructionMgr.isRunning())
+					if( !g_Bot.instructionInProgress() )
 					{
-						g_OpTimer = 0;
+						g_InstructionMgr.nextInstruction();
+						
+						g_Bot.prepareForNewInstruction();
 					}
 				}
 			}

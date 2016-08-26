@@ -113,11 +113,11 @@ ControlPanel.prototype.addControlPanelWindow = function( cameraUp )
 }
 
 /**
-* updateCamera()
+* update()
 * 
 *
 */
-ControlPanel.prototype.updateCamera = function()
+ControlPanel.prototype.update = function( timeElapsed )
 {
 	this.panelCamera.lookAt( this.panelScene.position );
 }
