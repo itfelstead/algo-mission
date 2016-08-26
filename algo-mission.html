@@ -34,9 +34,10 @@
 		<script src="thirdparty/threejs/three.min.js"></script>
 		<script src="thirdparty/threejs/orbitcontrols.js"></script>
 
-		<script src="botclass.js"></script>
-		<script src="missionmapclass.js"></script>
-		<script src="instructionclass.js"></script>
+		<script src="botclass.js"></script> 			// the bus
+		<script src="missionmapclass.js"></script> 		// the mission maps
+		<script src="instructionclass.js"></script> 	// instruction support and window
+		<script src="controlpanelclass.js"></script> 	// control panel support and window
 		
 		<script>
 			"use strict";
@@ -69,7 +70,9 @@
 			var g_MapManager;
 			var g_MapLoaded = false;
 
-			var g_InstructionMgr;			
+			var g_InstructionMgr;	
+			
+			var g_ControlPanel;		
 			
 			var TILE_BORDER = 4; 		// make tile this much*2 longer than g_Bot.length
 
@@ -82,26 +85,6 @@
 			var g_Clock;
 			var g_Lag = 0; 	// used in game loop for fixed step update
 
-			// Inset Command Window Globals
-			var INSET_DIV_NAME = "CommandInset";
-			var INSET_CANVAS_WIDTH = 200;
-			var INSET_CANVAS_HEIGHT = 200;
-			var INSET_LEFT_OFFSET = 0;
-			var INSET_BOTTOM_OFFSET = 10;
-			var INSET_MARGIN = 20;
-			var INSET_CAM_FOV =30 
-			var INSET_CAM_NEAR = 1;
-			var INSET_CAM_FAR = 1000;
-			var g_InsetEnabled  = 1;
-			var g_InsetScene;
-			var g_InsetRenderer;
-			var g_InsetElement;
-			var g_InsetContainer;
-			var g_InsetCamera;
-
-			// Control Panel
-			var g_ControlPanelObjects; 	// an array of buttons (meshes)
-
 			// Instruction operation processing
 
 			var ROTATE_STEP = 90 * Math.PI/180; 	// Turn by 90 degrees (in radians)
@@ -113,8 +96,6 @@
 
 			var g_InterInstructionPause = 0;
 			
-
-
 			// Main
 
 			console.log( "algo-mission v" + VERSION + " starting..." );
@@ -138,8 +119,6 @@
 				
 				setupBasicScene();
 
-				addInstructionWindow();
-
 				addCamera();
 
 				addSky();
@@ -148,12 +127,10 @@
 
 				addMouseControls();
 				
-				addInsetWindow();
-
-				addInstructionManager();			
-
-				addControlPanel( g_InsetScene ); 	// requires m_InstructionMgr
+				addInstructionManager();
 				
+				addControlPanel( g_InstructionMgr, g_TextureLoader );
+
 				addAxisHelper();
 
 				g_BotLoaded = false;
@@ -291,7 +268,16 @@
 			
 			function addInstructionManager( )
 			{
-				g_InstructionMgr = new InstructionManager( );	
+				g_InstructionMgr = new InstructionManager( );
+				g_InstructionMgr.addInstructionWindow();
+			}
+			
+			function addControlPanel( instructionMgr, textureLoader )
+			{
+				g_ControlPanel = new ControlPanel( );
+				g_ControlPanel.addControlPanel( g_Camera.up, instructionMgr, textureLoader ); 
+				
+				// TODO callback when ready?
 			}
 			
 			function addEventListeners()
@@ -300,101 +286,6 @@
 				setTimeout(handleResize, 1);
 			}
 			
-			function addInsetWindow()
-			{
-				if( !g_InsetEnabled )
-				{
-					return;
-				}
-				// Inset Window
-				var insetDiv = document.createElement( "div" );
-				insetDiv.id = INSET_DIV_NAME;
-				insetDiv.style.cssText ="width: " + INSET_CANVAS_WIDTH + "px; " +
-							"height: " + INSET_CANVAS_HEIGHT + "px; " +
-							"left: " + INSET_LEFT_OFFSET + "px; " +
-							"bottom: " + INSET_BOTTOM_OFFSET + "px;" +
-							"background-color: transparent;" + /* or #fff */
-							"opacity: 1; " + /* affects whole window */
-							"border: none; " + /* or e.g. '2px solid black' */
-							"margin: " + INSET_MARGIN + "px; " +
-							"padding: 0px; " +
-							"position: absolute; z-index: 100;";
-				//insetDiv.style.visibility = 'hidden';
-				
-				insetDiv.style.opacity = 0.0; 		// we'll set to 1 after loading
-				
-				document.body.appendChild( insetDiv );
-				g_InsetContainer = document.getElementById( INSET_DIV_NAME );
-				// use 'alpha' to allow transparent inset window
-				g_InsetRenderer = new THREE.WebGLRenderer( { alpha: true } );
-				g_InsetRenderer.setSize( INSET_CANVAS_WIDTH, INSET_CANVAS_HEIGHT );
-				g_InsetContainer.appendChild( g_InsetRenderer.domElement );
-				g_InsetScene = new THREE.Scene();
-				g_InsetCamera = new THREE.PerspectiveCamera( INSET_CAM_FOV, 
-										INSET_CANVAS_WIDTH / INSET_CANVAS_HEIGHT, 
-										INSET_CAM_NEAR, 
-										INSET_CAM_FAR );
-				g_InsetCamera.up = g_Camera.up;
-        			g_InsetCamera.position.set(0, 0, -50);
-			}
-
-			function addControlPanel( sceneToUpdate )
-			{
-				g_ControlPanelObjects = {};
-
-				// Layout is something like this (x grows left, y grows up)
-				//
-				//                 [forward]
-				//           [left] [pause] [right]
-				//    [fire]        [back]
-				//           [clear]        [go]
-				//
-				var boxSize = 1; 	// for display size is irrelevant as FoV will alter to fill window
-				var gridSize = 4; 	// panel buttons are placed on a 4x4 grid
-				var defaultZ = 1;
-				var stepSize = boxSize * 1.25;
-				var offset = (-(gridSize * stepSize) / 2) + (boxSize/2);
-
-				var panelConfig = [
-					{ "id": g_InstructionMgr.instructionConfig.FORWARD,    "x": 1, "y": 3, "z": defaultZ, "pic": "Up256.png" },
-					{ "id": g_InstructionMgr.instructionConfig.BACK,  "x": 1, "y": 1, "z": defaultZ, "pic": "Back256.png" },
-					{ "id": g_InstructionMgr.instructionConfig.LEFT,  "x": 2, "y": 2, "z": defaultZ, "pic": "Left256.png" },
-					{ "id": g_InstructionMgr.instructionConfig.RIGHT, "x": 0, "y": 2, "z": defaultZ, "pic": "Right256.png" },
-					{ "id": g_InstructionMgr.instructionConfig.CLEAR, "x": 2, "y": 0, "z": defaultZ, "pic": "Clear256.png" },
-					{ "id": g_InstructionMgr.instructionConfig.GO,    "x": 0, "y": 0, "z": defaultZ, "pic": "Go256.png" },
-					{ "id": g_InstructionMgr.instructionConfig.FIRE,  "x": 3, "y": 1, "z": defaultZ, "pic": "Fire256.png" },
-					{ "id": g_InstructionMgr.instructionConfig.PAUSE, "x": 1, "y": 2, "z": defaultZ, "pic": "Stop256.png" }
-				];
-
-				
-				for (var i = 0; i < panelConfig.length; i++) 
-				{
-					var buttonConfig = panelConfig[i];
-					var picture = buttonConfig.pic;
-					var texture = g_TextureLoader.load( "textures/" + picture );
-
-					var buttonGeo = new THREE.BoxGeometry( boxSize, boxSize, 0.1 );
-					var buttonMaterial = new THREE.MeshBasicMaterial( {map: texture } );
-					var buttonMesh = new THREE.Mesh( buttonGeo, buttonMaterial );
-
-					buttonMesh.position.set( offset + (buttonConfig.x*stepSize), offset + (buttonConfig.y*stepSize), buttonConfig.z );
-
-					buttonMesh.name = buttonConfig.id;
-
-					g_ControlPanelObjects[ buttonConfig.id ] = buttonMesh;
-
-					sceneToUpdate.add( buttonMesh );
-				}
-
-				// Adjust the FoV to fill the whole view with the control panel
-				var dist = (-g_InsetCamera.position.z) + defaultZ;
-				var height = gridSize * stepSize;
-				var fov = 2 * Math.atan( height / ( 2 * dist ) ) * ( 180 / Math.PI );
-				g_InsetCamera.fov = fov;
-				g_InsetCamera.updateProjectionMatrix();
-
-			}
-
 			function displayLoadingScreen()
 			{
 				var loadDiv = document.createElement('div');
@@ -447,8 +338,8 @@
 				(function fadeDivs()
 				{
 					document.getElementById("loadingScreen").style.opacity = fade;
-				 	document.getElementById("instructionTextBox").style.opacity = 1.0 - fade;
-				 	document.getElementById(INSET_DIV_NAME).style.opacity = 1.0 - fade;
+					g_ControlPanel.setWindowOpacity( 1.0 - fade );
+				  	g_InstructionMgr.setWindowOpacity( 1.0 - fade );
 				  	
 				  	fade -= fadeStep;
 				  	if( fade > 0 ) 
@@ -460,41 +351,6 @@
 						document.getElementById("loadingScreen").remove();	
 					}
 				})();
-			}
-
-			function addInstructionWindow() 
-			{
-				var instructionDiv = document.createElement('div');
-
-				instructionDiv.id = "instructionTextBox";
-				instructionDiv.style.cssText =
-				            "width: 200px;" +
-							"height: 200px;" +
-							"left: 20px;" +
-							"top: 20px;" +
-							"max-height: 200px;" +
-							"min-height: 200px;" +
-							"border: none;" +  /* or e.g. '2px solid black' */
-							"background-color: DimGray;" +
-							"color: White;" +
-							// we want a 50% transparent background, but not 
-							// transparent text, so use rgba rather than opacity.
-							"background: rgba(105, 105, 105, 0.5);" +
-							"overflow: auto;" +
-							"position: absolute;" +
-							"font: 12px arial,serif;";
-							
-				instructionDiv.style.opacity = 0.0;		// we'll set to 1 after loading
-				
-				document.body.appendChild(instructionDiv);
-			}
-
-
-
-			function tailScroll()
-			{
-				document.getElementById("instructionTextBox").scrollTop = 
-						document.getElementById("instructionTextBox").scrollHeight;
 			}
 
 			function setupCollisionDetection()
@@ -541,12 +397,9 @@
 
 				processInstruction( UPDATE_TIME_STEP );
 
-				if( g_InsetEnabled )
-				{
-					g_InsetCamera.lookAt( g_InsetScene.position );
-				}
+				g_ControlPanel.updateCamera();
 
-				if( typeof(g_Bot.mesh) != "undefined" )
+				if( g_Bot.mesh != null && typeof(g_Bot.mesh) != "undefined" )
 				{
 					g_Bot.mesh.rotation.set( 0, g_Bot.rotation, 0.0, 'XYZ' );
 					
@@ -565,10 +418,7 @@
 			function render( )
 			{
 				g_Renderer.render(g_Scene, g_Camera);
-				if( g_InsetEnabled )
-				{
-					g_InsetRenderer.render(g_InsetScene, g_InsetCamera);
-				}
+				g_ControlPanel.render();
 			}
 
 			function handleResize()
@@ -577,7 +427,7 @@
 				var height = g_Container.offsetHeight;
 
 				g_Camera.aspect = width / height;
-			        g_Camera.updateProjectionMatrix();
+				g_Camera.updateProjectionMatrix();
 
 				g_Renderer.setSize(width, height);
 			}
@@ -598,44 +448,29 @@
 				var mainElement = document.getElementById("AlgoMission");
 				var mainWindowHeight = mainElement.clientHeight;
 
-				// The event's X & Y are in relation to the main window
-				// so we adjust them to be in relation to the inset window
-				var insetClientX = event.clientX - (INSET_LEFT_OFFSET + INSET_MARGIN);
-				var insetClientY = event.clientY - (mainWindowHeight - INSET_CANVAS_HEIGHT - (INSET_BOTTOM_OFFSET + INSET_MARGIN));
-
-				// Normalise the X & Y and test for intersection with inset window objects
-				var mouse = new THREE.Vector2();
- 				mouse.x = ( insetClientX / g_InsetRenderer.domElement.clientWidth ) * 2 - 1;
-				mouse.y = - ( insetClientY / g_InsetRenderer.domElement.clientHeight ) * 2 + 1;
-
-				g_Raycaster.setFromCamera( mouse, g_InsetCamera );
-
-				var buttonObjects = [];
-				for( var key in g_ControlPanelObjects )
-				{
-				    var mesh = g_ControlPanelObjects[ key ];
-				    
-				    buttonObjects.push( mesh );
-				}
-
+				// Check for instruction button presses
+				//
 				var instructionsUpdated = 0;
-
-				var buttonIntersects = g_Raycaster.intersectObjects( buttonObjects );
-
-				if( buttonIntersects.length > 0 )
+				var instructionClicked = g_ControlPanel.detectInstructionPress( event.clientX, event.clientY, mainElement.clientHeight, g_Raycaster );
+				
+				if( instructionClicked )
 				{
-					// Intersection detected
-					var instructionClicked = buttonIntersects[ 0 ].object.name;
 					if( instructionClicked == g_InstructionMgr.instructionConfig.CLEAR )
 					{
-						g_InstructionMgr.clearInstructions();
+						if( !g_InstructionMgr.isRunning() )
+						{
+							g_InstructionMgr.clearInstructions();
 						
-						instructionsUpdated = 1;
+							instructionsUpdated = 1;
+						}
 					}
 					else if( instructionClicked == g_InstructionMgr.instructionConfig.GO )
 					{
-						g_OpTimer = OP_TIME_STEP;
-						g_InstructionMgr.startInstructions();	
+						if( !g_InstructionMgr.isRunning() )
+						{
+							g_OpTimer = OP_TIME_STEP;
+							g_InstructionMgr.startInstructions();	
+						}
 					}
 					else
 					{
@@ -644,8 +479,7 @@
 					}
 				}
 
-				document.getElementById("instructionTextBox").innerHTML = g_InstructionMgr.generateInstructionHtml();
-				tailScroll();
+				g_InstructionMgr.updateWindow();
 			}
 
 			function processInstruction( deltaTime )

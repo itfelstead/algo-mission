@@ -51,6 +51,59 @@ InstructionManager.prototype.instructionConfig = Object.freeze(
 );
 
 /**
+* addInstructionWindow()
+* 
+*
+*/
+InstructionManager.prototype.addInstructionWindow = function()
+{
+	var instructionDiv = document.createElement('div');
+
+	instructionDiv.id = "instructionTextBox";
+	instructionDiv.style.cssText =
+	            "width: 200px;" +
+				"height: 200px;" +
+				"left: 20px;" +
+				"top: 20px;" +
+				"max-height: 200px;" +
+				"min-height: 200px;" +
+				"border: none;" +  /* or e.g. '2px solid black' */
+				"background-color: DimGray;" +
+				"color: White;" +
+				// we want a 50% transparent background, but not 
+				// transparent text, so use rgba rather than opacity.
+				"background: rgba(105, 105, 105, 0.5);" +
+				"overflow: auto;" +
+				"position: absolute;" +
+				"font: 12px arial,serif;";
+				
+	instructionDiv.style.opacity = 0.0;		// we'll set to 1 after loading
+	
+	document.body.appendChild(instructionDiv);
+}
+
+/**
+* setWindowOpacity()
+* 
+*
+*/
+InstructionManager.prototype.setWindowOpacity = function( opacity )
+{
+	document.getElementById("instructionTextBox").style.opacity = opacity;
+}
+
+/**
+* updateWindow()
+* 
+*
+*/
+InstructionManager.prototype.updateWindow = function()
+{
+	document.getElementById("instructionTextBox").innerHTML = this.generateInstructionHtml();
+	this.tailScroll();
+}
+
+/**
 * generateInstructionHtml()
 * 
 *
@@ -79,7 +132,16 @@ InstructionManager.prototype.generateInstructionHtml = function()
 
 	return html;
 }
-			
+
+/**
+* tailScroll()
+* 
+*
+*/
+InstructionManager.prototype.tailScroll = function()
+{
+	document.getElementById("instructionTextBox").scrollTop = document.getElementById("instructionTextBox").scrollHeight;
+}
 			
 /**
 * clearInstructions()
