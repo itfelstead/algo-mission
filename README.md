@@ -8,6 +8,9 @@ This project aims to create a three.js based path programmable object much like 
 
 Ian Felstead
 
+Screenshot:
+![alt tag](https://cloud.githubusercontent.com/assets/5990178/19145914/21829310-8ba9-11e6-9619-04fbb6d4f722.JPG)
+
 
 Notices;
 
