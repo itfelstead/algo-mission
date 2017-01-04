@@ -1,4 +1,6 @@
 # algo-mission
+# Ian Felstead
+
 Algorithm mission: Basically a bit like a web version of BigTrak/BeeBot.
 
 In many UK primary schools BigTrak has made a comeback in the form of BeeBot.
@@ -6,8 +8,13 @@ Devices like these follow simple directional instructions which in theory provid
 
 This project aims to create a three.js based path programmable object much like the BigTrak/BeeBot.
 
-Ian Felstead
-
+To run locally you can use node.js's http-server (otherwise see https://github.com/mrdoob/three.js/wiki/How-to-run-things-locally).
+e.g.
+	install node.js
+	npm install http-server -g
+	navigate to your algo-mission dir
+	http-server
+	point your browser at http://127.0.0.1:8080/algo-mission.html
 
 Notices;
 
@@ -25,4 +32,3 @@ Road art (textures/road/*)
 Modified version of Road_test.png from www.adebgamesoft.be
 http://creativecommons.org/publicdomain/zero/1.0/
 (http://opengameart.org/content/top-down-road-tileset)
-
