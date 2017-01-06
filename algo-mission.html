@@ -1,7 +1,7 @@
 <!--
 	algo-mission.html
 
-	Initial version of the algo-mission project entry point.
+	algo-mission project entry point.
 
 	Author: Ian Felstead
 -->
@@ -17,6 +17,8 @@
 				margin: 0px;
 				overflow: hidden;
 			}
+
+
 			/* Main Window */
 			#AlgoMission {
 				position: absolute;
@@ -29,22 +31,23 @@
 	</head>
 
 	<body>
+
 		<div id="AlgoMission"></div>
 
 		<script src="thirdparty/threejs/three.min.js"></script>
 		<script src="thirdparty/threejs/orbitcontrols.js"></script>
 
-		<script src="botclass.js"></script> 			// the bus
+		<script src="botclass.js"></script> 					// the bus
 		<script src="missionmapclass.js"></script> 		// the mission maps
 		<script src="instructionclass.js"></script> 	// instruction support and window
 		<script src="controlpanelclass.js"></script> 	// control panel support and window
-		
+
 		<script>
 			"use strict";
-			
+
 			// Global Namespace
 			var ALGO = ALGO || {};
-			
+
 			const VERSION = 0.01;
 
 			var g_MouseControls;
@@ -64,18 +67,21 @@
 			var g_Container;
 
 			// Bot
-			var g_Bot;	
+			var g_Bot;
 			var g_BotLoaded = false;
 
 			var g_MapManager;
 			var g_MapLoaded = false;
 
-			var g_InstructionMgr;	
-		
-			var g_ControlPanel;		
-			
+			var g_SkyLoaded = false;
+
+			var g_InstructionMgr;
+
+			var g_ControlPanel;
+
 			// Collision Detection
 			var g_Raycaster;
+
 
 			// Game Loop Globals
 			const UPDATE_TIME_STEP = 0.033; // 33ms = approx 30 FPS
@@ -102,7 +108,7 @@
 			function initialise()
 			{
 				displayLoadingScreen();
-				
+
 				setupBasicScene();
 
 				addCamera();
@@ -112,42 +118,52 @@
 				addAmbientLight();
 
 				addMouseControls();
-				
+
 				addInstructionManager();
-				
+
 				addControlPanel( g_InstructionMgr, g_TextureLoader );
 
 				addAxisHelper();
 
 				g_BotLoaded = false;
 				addBot( g_InstructionMgr, botCreatedCb );
-				
-				g_MapLoaded = false;
+
 				addMapManager( g_TextureLoader );
-				
+
 				// We use the calculated bot length to size the tiles
 				// so wait until the model has loaded and the length
 				// has been calculated
 				var myInterval = setInterval( function(){
 					if( g_BotLoaded == true && g_MapLoaded == true )
-				    {
+				  {
 						// adjust map and bot step measurements according to Bot length
 						g_MapManager.resize( g_Bot.getStepSize(), 0.1 );
-						
-						g_MapManager.loadMap();		
+
+						g_MapManager.loadMap();
+
 						g_MapManager.addMapToScene( g_Scene );
 
 						clearInterval( myInterval );
 					}
 				}, 100 );
 
+
 				setupGameLoop();
 
 				setupCollisionDetection();
 
 				addEventListeners();
-						
-			 	removeLoadingScreen();
+
+				var waitForLoad = setInterval( function(){
+					if( g_BotLoaded == true &&
+						  g_SkyLoaded == true &&
+						  g_MapLoaded == true )
+				  {
+						  clearInterval( waitForLoad );
+							removeLoadingScreen();
+					}
+				}, 100 );
+
 			}
 
 			function setupGameLoop()
@@ -184,7 +200,7 @@
 			{
 				g_MouseControls = new THREE.OrbitControls(g_Camera, g_Element);
 
-				// Rotate about the center. 
+				// Rotate about the center.
 				g_MouseControls.target.set( 0, 0, 0 );
 
 				// Future note: If you wanted a VR like rotation then change
@@ -203,6 +219,8 @@
 
 			function addSky()
 			{
+				g_SkyLoaded = false;
+
 				var skyGeo = new THREE.SphereGeometry( 500, 60, 40 );
 				skyGeo.scale( - 1, 1, 1 );
 
@@ -214,16 +232,17 @@
 						var material = new THREE.MeshBasicMaterial( { map: texture } );
 						var mesh = new THREE.Mesh( skyGeo, material );
 						g_Scene.add( mesh );
+						g_SkyLoaded = true;
 					},
 					// on download progress
 					function( xhr )
 					{
-						console.log( SKY_TEXTURE + " " + (xhr.loaded / xhr.total * 100) + '% loaded' );
+						//console.log( SKY_TEXTURE + " " + (xhr.loaded / xhr.total * 100) + '% loaded' );
 					},
 					// on error
 					function( xhr )
 					{
-						console.log( 'Error loading sky texture ' + SKY_TEXTURE );
+						//console.log( 'Error loading sky texture ' + SKY_TEXTURE );
 					}
 				);
 			}
@@ -232,56 +251,57 @@
 			function addBot( instructionMgr, botCb )
 			{
 				g_Bot = new Bot( instructionMgr );
-				g_Bot.load( "models/ToonBus_VijayKumar.json", 
-								"textures/Toon_Bus_Texture.jpg", 
+				g_Bot.load( "models/ToonBus_VijayKumar.json",
+								"textures/Toon_Bus_Texture.jpg",
 								g_JSONLoader, g_TextureLoader, botCb );
 			}
-			
+
 			function botCreatedCb()
 			{
 				g_Scene.add( g_Bot.mesh );
 				g_BotLoaded = true;
 			}
-			
+
 			function addMapManager( textureLoader )
 			{
-				g_MapManager = new MapManager( textureLoader );	
-				g_MapLoaded = true;
+				g_MapLoaded = false;
+				g_MapManager = new MapManager( textureLoader, function(){ g_MapLoaded = true; } );
 			}
-			
+
 			function addInstructionManager( )
 			{
 				g_InstructionMgr = new InstructionManager( );
 				g_InstructionMgr.addInstructionWindow();
+				g_InstructionMgr.updateWindow();
 			}
-			
+
 			function addControlPanel( instructionMgr, textureLoader )
 			{
 				g_ControlPanel = new ControlPanel( );
-				g_ControlPanel.addControlPanel( g_Camera.up, instructionMgr, textureLoader ); 
-				
+				g_ControlPanel.addControlPanel( g_Camera.up, instructionMgr, textureLoader );
+
 				// TODO callback when ready?
 			}
-			
+
 			function addEventListeners()
 			{
 				window.addEventListener('resize', handleResize, false);
 				setTimeout(handleResize, 1);
 			}
-			
+
 			function displayLoadingScreen()
 			{
 				var loadDiv = document.createElement('div');
 
 				loadDiv.id = "loadingScreen";
 				loadDiv.style.cssText =
-				      		"width: 100%;" +
+				      "width: 100%;" +
 							"height: 100%;" +
 							"left: 00px;" +
 							"top: 00px;" +
 							"background-color: DimGray;" +
 							"color: White;" +
-							// we want a 50% transparent background, but not 
+							// we want an opaque background, but not
 							// transparent text, so use rgba rather than opacity.
 							"background: rgba(105, 105, 105, 1.0);" +
 							"overflow: auto;" +
@@ -289,49 +309,65 @@
 							"font: 24px arial,serif;";
 				loadDiv.innerHTML = "Loading...";
 				document.body.appendChild(loadDiv);
-				
-							
+
+				var progressDots = 0;
 				var progressIntervalMs = 500; 	// 0.5 seconds
-				var numDots = 0;
-				
-				(function showProgress(){
-					// dot away until the loading screen has been removed
+
+				var progressBarInterval = setInterval( function()
+				{
+					var isFinished = true;
+
+					// If the loadingScreen has gone or the html is "" then we
+					// are finished and fading out
 					var loadElem = document.getElementById("loadingScreen");
 					if( loadElem )
 					{
-					    loadElem.innerHTML = loadElem.innerHTML + ".";
-					    if( numDots++ % 80 )
-					    {
-					    	numDots = 0;
-					    	loadElem.innerHTML = "Loading...";
-					    }
-				    	setTimeout(showProgress, progressIntervalMs);
-				    }
-				})();
+						if( loadElem.innerHTML != "" )
+						{
+							isFinished = false;
+
+							loadElem.innerHTML = loadElem.innerHTML + ".";
+							progressDots++;
+
+							if( progressDots >= 80 )
+							{
+								progressDots = 0;
+								loadElem.innerHTML = "Loading...";
+							}
+						}
+					}
+
+					if( isFinished == true )
+					{
+						clearInterval(progressBarInterval);
+					}
+				},500 );
 			}
-			
+
 			function removeLoadingScreen()
 			{
-
 				var fadeStep = 0.05;
 				var fadePauseMs = 100;
 				var fade = 1.0;
+
+				// setting html to '' also tells the progress bar to finish
 				document.getElementById("loadingScreen").innerHTML = "";
-				
+
 				(function fadeDivs()
 				{
 					document.getElementById("loadingScreen").style.opacity = fade;
+
 					g_ControlPanel.setWindowOpacity( 1.0 - fade );
-				  	g_InstructionMgr.setWindowOpacity( 1.0 - fade );
-				  	
-				  	fade -= fadeStep;
-				  	if( fade > 0 ) 
-				  	{
+				  g_InstructionMgr.setWindowOpacity( 1.0 - fade );
+
+				  fade -= fadeStep;
+				  if( fade > 0 )
+				  {
 						setTimeout( fadeDivs, fadePauseMs );
 					}
 					else
 					{
-						document.getElementById("loadingScreen").remove();	
+						document.getElementById("loadingScreen").remove();
 					}
 				})();
 			}
@@ -382,9 +418,9 @@
 				g_ControlPanel.update( UPDATE_TIME_STEP );
 
 				g_Bot.update( UPDATE_TIME_STEP )
-
+
 				g_MapManager.update();
-				
+
 				if( g_Bot.mesh != null && typeof(g_Bot.mesh) != "undefined" )
 				{
 		        	g_Camera.updateProjectionMatrix();
@@ -428,10 +464,10 @@
 				// Check for instruction button presses
 				//
 				var instructionsUpdated = 0;
-				var instructionClicked = 
-						g_ControlPanel.detectInstructionPress( event.clientX, event.clientY, 
+				var instructionClicked =
+						g_ControlPanel.detectInstructionPress( event.clientX, event.clientY,
 																mainElement.clientHeight, g_Raycaster );
-				
+
 				if( instructionClicked )
 				{
 					// We handle CLEAR and GO here, others are added to the instruction list
@@ -440,7 +476,7 @@
 						if( !g_InstructionMgr.isRunning() )
 						{
 							g_InstructionMgr.clearInstructions();
-						
+
 							instructionsUpdated = 1;
 						}
 					}
@@ -449,8 +485,8 @@
 						if( !g_InstructionMgr.isRunning() && g_InstructionMgr.numInstructions() > 0 )
 						{
 							g_Bot.prepareForNewInstruction();
-							
-							g_InstructionMgr.startInstructions();	
+
+							g_InstructionMgr.startInstructions();
 						}
 					}
 					else
@@ -470,7 +506,7 @@
 					if( !g_Bot.instructionInProgress() )
 					{
 						g_InstructionMgr.nextInstruction();
-						
+
 						g_Bot.prepareForNewInstruction();
 					}
 				}
@@ -485,5 +521,6 @@
 				g_Scene.add( new THREE.AxisHelper( 50 ) );
 			}
 		</script>
+
 	</body>
 </html>
