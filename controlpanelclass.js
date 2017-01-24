@@ -5,7 +5,7 @@
 */
 
 "use strict";
- 
+
 /**
  * @namespace The algo-mission namespace
  */
@@ -18,7 +18,7 @@ var INSET_CANVAS_HEIGHT = 200;
 var INSET_LEFT_OFFSET = 0;
 var INSET_BOTTOM_OFFSET = 10;
 var INSET_MARGIN = 20;
-var INSET_CAM_FOV =30 
+var INSET_CAM_FOV =30
 var INSET_CAM_NEAR = 1;
 var INSET_CAM_FAR = 1000;
 
@@ -26,20 +26,20 @@ var INSET_CAM_FAR = 1000;
 * constructor
 * @class The ControlPanel class.
 */
-var ControlPanel = function () 
+var ControlPanel = function ()
 {
 	this.controlPanelObjects = {}; // an array of buttons (meshes)
-	
+
 	this.panelScene = null;
-	
+
 	this.panelCamera = null;
-	
+
 	this.panelRenderer = null;
 };
 
 /**
 * addControlPanel()
-* 
+*
 *
 */
 ControlPanel.prototype.addControlPanel = function ( cameraUp, instructionMgr, textureLoader )
@@ -50,7 +50,7 @@ ControlPanel.prototype.addControlPanel = function ( cameraUp, instructionMgr, te
 
 /**
 * panelWidth()
-* 
+*
 *
 */
 ControlPanel.prototype.panelWidth = function ( )
@@ -60,7 +60,7 @@ ControlPanel.prototype.panelWidth = function ( )
 
 /**
 * panelHeight()
-* 
+*
 *
 */
 ControlPanel.prototype.panelHeight = function ( )
@@ -70,7 +70,7 @@ ControlPanel.prototype.panelHeight = function ( )
 
 /**
 * addControlPanelWindow()
-* 
+*
 *
 */
 ControlPanel.prototype.addControlPanelWindow = function( cameraUp )
@@ -90,12 +90,12 @@ ControlPanel.prototype.addControlPanelWindow = function( cameraUp )
 				"position: absolute; z-index: 100;";
 
 	insetDiv.style.opacity = 0.0; 		// we'll set to 1 after loading
-	
+
 	document.body.appendChild( insetDiv );
-				
+
 	// create panel renderer, scene & camera
 	var panelContainer = document.getElementById( INSET_DIV_NAME );
-	
+
 	// use 'alpha' to allow transparent inset window
 	this.panelRenderer = new THREE.WebGLRenderer( { alpha: true } );
 	this.panelRenderer.setSize( INSET_CANVAS_WIDTH, INSET_CANVAS_HEIGHT );
@@ -104,9 +104,9 @@ ControlPanel.prototype.addControlPanelWindow = function( cameraUp )
 
 
 	this.panelScene = new THREE.Scene();
-	this.panelCamera = new THREE.PerspectiveCamera( INSET_CAM_FOV, 
-							INSET_CANVAS_WIDTH / INSET_CANVAS_HEIGHT, 
-							INSET_CAM_NEAR, 
+	this.panelCamera = new THREE.PerspectiveCamera( INSET_CAM_FOV,
+							INSET_CANVAS_WIDTH / INSET_CANVAS_HEIGHT,
+							INSET_CAM_NEAR,
 							INSET_CAM_FAR );
 	this.panelCamera.up = cameraUp;
 	this.panelCamera.position.set(0, 0, -50);
@@ -114,7 +114,7 @@ ControlPanel.prototype.addControlPanelWindow = function( cameraUp )
 
 /**
 * update()
-* 
+*
 *
 */
 ControlPanel.prototype.update = function( timeElapsed )
@@ -124,7 +124,7 @@ ControlPanel.prototype.update = function( timeElapsed )
 
 /**
 * render()
-* 
+*
 *
 */
 ControlPanel.prototype.render = function()
@@ -134,7 +134,7 @@ ControlPanel.prototype.render = function()
 
 /**
 * setWindowOpacity()
-* 
+*
 *
 */
 ControlPanel.prototype.setWindowOpacity = function( opacity )
@@ -144,7 +144,7 @@ ControlPanel.prototype.setWindowOpacity = function( opacity )
 
 /**
 * addControlPanelButtons()
-* 
+*
 *
 */
 ControlPanel.prototype.addControlPanelButtons = function( instructionMgr, textureLoader )
@@ -175,8 +175,8 @@ ControlPanel.prototype.addControlPanelButtons = function( instructionMgr, textur
 		{ "id": instructionMgr.instructionConfig.PAUSE, "x": 1, "y": 2, "z": defaultZ, "pic": "Stop256.png" }
 	];
 
-	
-	for (var i = 0; i < panelConfig.length; i++) 
+
+	for (var i = 0; i < panelConfig.length; i++)
 	{
 		var buttonConfig = panelConfig[i];
 		var picture = buttonConfig.pic;
@@ -206,18 +206,18 @@ ControlPanel.prototype.addControlPanelButtons = function( instructionMgr, textur
 
 /**
 * detectInstructionPress()
-* 
+*
 *
 */
 ControlPanel.prototype.detectInstructionPress = function( xPos, yPos, parentHeight, raycaster )
 {
 	var instructionClicked;
-	
+
 	if( typeof(raycaster) == "undefined" )
 	{
-		return;	
+		return;
 	}
-	
+
 	// The event's X & Y are in relation to the main window
 	// so we adjust them to be in relation to the inset window
 	var insetClientX = xPos - (INSET_LEFT_OFFSET + INSET_MARGIN);
@@ -227,18 +227,18 @@ ControlPanel.prototype.detectInstructionPress = function( xPos, yPos, parentHeig
 	var mouse = new THREE.Vector2();
 	mouse.x = ( insetClientX / this.panelWidth() ) * 2 - 1;
 	mouse.y = - ( insetClientY / this.panelHeight() ) * 2 + 1;
-	
+
 	raycaster.setFromCamera( mouse, this.panelCamera );
-	
-	
+
+
 	var buttonObjects = [];
 	for( var key in this.controlPanelObjects )
 	{
 	    var mesh = this.controlPanelObjects[ key ];
-	    
+
 	    buttonObjects.push( mesh );
 	}
-	
+
 	var buttonIntersects = raycaster.intersectObjects( buttonObjects );
 
 	if( buttonIntersects.length > 0 )
@@ -246,6 +246,6 @@ ControlPanel.prototype.detectInstructionPress = function( xPos, yPos, parentHeig
 		// Intersection detected
 		instructionClicked = buttonIntersects[ 0 ].object.name;
 	}
-	
+
 	return instructionClicked;
 }

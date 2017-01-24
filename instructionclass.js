@@ -5,7 +5,7 @@
 */
 
 "use strict";
- 
+
 /**
  * @namespace The algo-mission namespace
  */
@@ -15,7 +15,7 @@ var ALGO = ALGO || {};
 * constructor
 * @class The InstructionManager class. Manages the instruction window in the game.
 */
-var InstructionManager = function () 
+var InstructionManager = function ()
 {
 	this.instructions = [];
 	this.html = "<b>Instructions:<b><p>";
@@ -36,12 +36,12 @@ InstructionManager.prototype.instructionConfig = Object.freeze(
 	   	FIRE: 6,
 	   	PAUSE: 7,
 	   	CLEAR: 8,
-	   
+
 	   	properties: {
 			1: {displayString: "forward<p>", value: 1},
 			2: {displayString: "back<p>", value: 2},
 	       	3: {displayString: "left<p>", value: 3},
-	       	4: {displayString: "right<p>", value: 4},               
+	       	4: {displayString: "right<p>", value: 4},
 	       	5: {displayString: "go<p>", value: 5},
 	       	6: {displayString: "fire!<p>", value: 6},
 	       	7: {displayString: "pause..<p>", value: 7},
@@ -52,7 +52,7 @@ InstructionManager.prototype.instructionConfig = Object.freeze(
 
 /**
 * addInstructionWindow()
-* 
+*
 *
 */
 InstructionManager.prototype.addInstructionWindow = function()
@@ -70,21 +70,21 @@ InstructionManager.prototype.addInstructionWindow = function()
 				"border: none;" +  /* or e.g. '2px solid black' */
 				"background-color: DimGray;" +
 				"color: White;" +
-				// we want a 50% transparent background, but not 
+				// we want a 50% transparent background, but not
 				// transparent text, so use rgba rather than opacity.
 				"background: rgba(105, 105, 105, 0.5);" +
 				"overflow: auto;" +
 				"position: absolute;" +
 				"font: 12px arial,serif;";
-				
+
 	instructionDiv.style.opacity = 0.0;		// we'll set to 1 after loading
-	
+
 	document.body.appendChild(instructionDiv);
 }
 
 /**
 * setWindowOpacity()
-* 
+*
 *
 */
 InstructionManager.prototype.setWindowOpacity = function( opacity )
@@ -94,7 +94,7 @@ InstructionManager.prototype.setWindowOpacity = function( opacity )
 
 /**
 * updateWindow()
-* 
+*
 *
 */
 InstructionManager.prototype.updateWindow = function()
@@ -105,13 +105,13 @@ InstructionManager.prototype.updateWindow = function()
 
 /**
 * generateInstructionHtml()
-* 
+*
 *
 */
 InstructionManager.prototype.generateInstructionHtml = function()
 {
 	var html = "<b>Instructions<b><p>";
-	
+
 	var numInstructions = this.instructions.length;
 	for( var i = 0; i < numInstructions; i++ )
 	{
@@ -135,17 +135,17 @@ InstructionManager.prototype.generateInstructionHtml = function()
 
 /**
 * tailScroll()
-* 
+*
 *
 */
 InstructionManager.prototype.tailScroll = function()
 {
 	document.getElementById("instructionTextBox").scrollTop = document.getElementById("instructionTextBox").scrollHeight;
 }
-			
+
 /**
 * clearInstructions()
-* 
+*
 *
 */
 InstructionManager.prototype.clearInstructions = function()
@@ -156,7 +156,7 @@ InstructionManager.prototype.clearInstructions = function()
 
 /**
 * addInstruction()
-* 
+*
 *
 */
 InstructionManager.prototype.addInstruction = function( instructionName )
@@ -166,7 +166,7 @@ InstructionManager.prototype.addInstruction = function( instructionName )
 
 /**
 * isRunning()
-* 
+*
 * true if instructions are in progress, false if not.
 */
 InstructionManager.prototype.isRunning = function()
@@ -176,7 +176,7 @@ InstructionManager.prototype.isRunning = function()
 
 /**
 * startInstructions()
-* 
+*
 */
 InstructionManager.prototype.startInstructions = function()
 {
@@ -185,8 +185,8 @@ InstructionManager.prototype.startInstructions = function()
 
 /**
 * currentInstruction()
-* 
-* 
+*
+*
 */
 InstructionManager.prototype.currentInstruction = function()
 {
@@ -195,8 +195,8 @@ InstructionManager.prototype.currentInstruction = function()
 
 /**
 * currentInstruction()
-* 
-* 
+*
+*
 */
 InstructionManager.prototype.nextInstruction = function()
 {
@@ -204,14 +204,16 @@ InstructionManager.prototype.nextInstruction = function()
 	if( this.instructionPtr >= this.instructions.length )
 	{
 		this.instructionPtr = this.instructionConfig.NO_INSTRUCTION;
+    return undefined;
 	}
+
 	return this.instructions[ this.instructionPtr ];
 }
 
 /**
 * numInstructions()
-* 
-* 
+*
+*
 */
 InstructionManager.prototype.numInstructions = function()
 {

@@ -424,7 +424,7 @@
 				if( g_Bot.mesh != null && typeof(g_Bot.mesh) != "undefined" )
 				{
 		        	g_Camera.updateProjectionMatrix();
-					g_Camera.lookAt( g_Bot.mesh.position );
+							g_Camera.lookAt( g_Bot.mesh.position );
 				}
 			}
 
@@ -484,9 +484,8 @@
 					{
 						if( !g_InstructionMgr.isRunning() && g_InstructionMgr.numInstructions() > 0 )
 						{
-							g_Bot.prepareForNewInstruction();
-
 							g_InstructionMgr.startInstructions();
+							g_Bot.prepareForNewInstruction();
 						}
 					}
 					else
@@ -503,10 +502,8 @@
 			{
 				if( g_InstructionMgr.isRunning() )
 				{
-					if( !g_Bot.instructionInProgress() )
+					if( !g_Bot.isBusy() && g_InstructionMgr.nextInstruction() != undefined )
 					{
-						g_InstructionMgr.nextInstruction();
-
 						g_Bot.prepareForNewInstruction();
 					}
 				}
