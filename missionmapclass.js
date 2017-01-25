@@ -295,6 +295,16 @@ MapManager.prototype.createMapObjects = function( mapDef )
 }
 
 /**
+*
+*
+*
+*/
+MapManager.prototype.getTileObjects = function()
+{
+	return this.activeMapObjects;
+}
+
+/**
 * translateTilePosition()
 *
 * Positions a map tile by translating the relative positions

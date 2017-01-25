@@ -125,10 +125,10 @@
 
 				addAxisHelper();
 
-				g_BotLoaded = false;
-				addBot( g_InstructionMgr, botCreatedCb );
-
 				addMapManager( g_TextureLoader );
+
+				g_BotLoaded = false;
+				addBot( g_InstructionMgr, g_MapManager, botCreatedCb );
 
 				// We use the calculated bot length to size the tiles
 				// so wait until the model has loaded and the length
@@ -248,9 +248,9 @@
 			}
 
 			// calls botCb() when bot is ready
-			function addBot( instructionMgr, botCb )
+			function addBot( instructionMgr, mapManager, botCb )
 			{
-				g_Bot = new Bot( instructionMgr );
+				g_Bot = new Bot( instructionMgr, mapManager );
 				g_Bot.load( "models/ToonBus_VijayKumar.json",
 								"textures/Toon_Bus_Texture.jpg",
 								g_JSONLoader, g_TextureLoader, botCb );

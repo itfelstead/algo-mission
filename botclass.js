@@ -12,6 +12,7 @@
 var ALGO = ALGO || {};
 
 var OP_TIME_STEP = 2; 			// time in secs to execute an instruction
+var OP_DEATH_TIME_STEP = 10;
 var OP_DELAY = 0.5; 			// delay between operations
 var ROTATE_STEP = 90 * Math.PI/180; 	// Turn by 90 degrees (in radians)
 
@@ -28,10 +29,14 @@ var TState = {
 * constructor
 * @class The bot class. Represents the main character in the game.
 */
-var Bot = function ( instructionMgr )
+var Bot = function ( instructionMgr, mapManager )
 {
 	// ctor
 	this.instructionMgr = instructionMgr; 	// Bot understands instructions
+
+  this.mapManager = mapManager;   // for map tile collision detection
+
+  this.raycaster = new THREE.Raycaster();
 
 	this.modelFile = null;
 	this.textureFile = null;
@@ -40,10 +45,15 @@ var Bot = function ( instructionMgr )
 	this.modelLength = 0;
 	this.stepSize = 0;  		// units to move by (over OP_TIME_STEP seconds). Will update based on bot length
 
-	this.rotation = 0;			// Amount to rotate in particular update
-	this.move = 0;				// Amount to move in particular update
+	this.rotationOnRoad = 0;       // Amount to rotate in particular update
+	this.moveOnRoad = 0;     // Amount to move in particular update
+  this.rotationInFall = 0;
+  this.moveInFall = 0;
+  this.scale = 0;         // for shrinking and growing the bus
 
-	this.instructionTimer = 0;	// how long each instruction should take
+  this.instructionTimer = 0;	// how long each instruction should take
+
+  this.deathTime = 0;
 
   this.instructionReady = 0;  // 1 if there is an instruction waiting for us
   this.isLoaded = 0;          // 1 if bot is loaded and ready
@@ -150,8 +160,8 @@ Bot.prototype.actOnState = function(timeElapsed)
       break;
 
     case TState.DYING:
-    //  var executionTime = this.calculateMovementTime(timeElapsed);
-    //  this.moveTowardsDoom( movementTime );
+      var executionTime = this.calculateDeathTime(timeElapsed);
+      this.doDeath( executionTime );
     break;
   }
 }
@@ -183,14 +193,18 @@ Bot.prototype.updateState = function()
         break;
 
         case TState.EXECUTING:
+
           if( this.instructionTimer <= 0 )
           {
               // instruction finished so pause
               newState = TState.WAITING;
           }
 
-          // if off map then
-          // newState = TState.DYING
+          if( this.isOnMap() == 0 )
+          {
+            newState = TState.DYING
+          }
+
         break;
 
         case TState.WAITING:
@@ -201,8 +215,10 @@ Bot.prototype.updateState = function()
         break;
 
         case TState.DYING:
-          // if dying process complete
-          // newState = TState.DEAD;
+          if( this.deathTimer <= 0)
+          {
+            newState = TState.DEAD;
+          }
         break;
 
         case TState.DEAD:
@@ -248,6 +264,9 @@ Bot.prototype.onEnterState = function()
       this.delayTimer = OP_DELAY;
     break;
 
+    case TState.DYING:
+      this.deathTimer = OP_DEATH_TIME_STEP;
+    break;
   }
 }
 
@@ -273,6 +292,10 @@ Bot.prototype.onExitState = function()
     case TState.EXECUTING:
       this.instructionTimer = 0;
     break;
+
+    case TState.DYING:
+      this.deathTimer = 0;
+    break;
   }
 }
 
@@ -285,8 +308,6 @@ Bot.prototype.onExitState = function()
 Bot.prototype.prepareForNewInstruction = function()
 {
   this.instructionReady = 1;
-	//this.delayTimer = 0;
-	//this.instructionTimer = OP_TIME_STEP;
 }
 
 /**
@@ -301,9 +322,41 @@ Bot.prototype.update = function( timeElapsed )
 
   this.updateState();
 
-	//if( this.instructionMgr.isRunning() )
-
 	this.updateMesh();
+}
+
+/**
+*
+*
+*
+*/
+Bot.prototype.isOnMap = function()
+{
+  var isOnMap = 0;
+  var mapTiles = this.mapManager.getTileObjects();
+  if( mapTiles.length > 0 )
+  {
+    var botPos = new THREE.Vector3;
+    botPos.y = g_Bot.mesh.position.y + 1; // bus is at same y pos as tiles so raise
+    botPos.x = g_Bot.mesh.position.x;
+    botPos.z = g_Bot.mesh.position.z;
+
+    var vec = new THREE.Vector3;
+    vec.x = 0;
+    vec.y = -1;
+    vec.z = 0;
+
+    this.raycaster.set( botPos, vec.normalize() );
+
+    var intersects = this.raycaster.intersectObjects(mapTiles); // store intersecting objects
+
+    if( intersects.length > 0 )
+    {
+      isOnMap = 1;
+    }
+  }
+
+  return isOnMap;
 }
 
 /**
@@ -314,15 +367,49 @@ Bot.prototype.update = function( timeElapsed )
 */
 Bot.prototype.calculateMovementTime = function( timeElapsed )
 {
-  var movementTime = timeElapsed;
-  this.instructionTimer = this.instructionTimer - timeElapsed;
-  if( this.instructionTimer <= 0 )
+  var movementTime = 0;
+
+  if( timeElapsed >= this.instructionTimer )
   {
-    // reduce movement time by amount of overrun
-    movementTime = timeElapsed + this.instructionTimer;
+    // Out of time in this step
+    movementTime = this.instructionTimer;   // use up remaining
+    this.instructionTimer = 0;
+  }
+  else {
+    movementTime = timeElapsed;
+    this.instructionTimer = this.instructionTimer - timeElapsed;
   }
 
   return movementTime;
+}
+
+Bot.prototype.calculateDeathTime = function( timeElapsed )
+{
+  var movementTime = 0;
+
+  if( timeElapsed >= this.deathTimer )
+  {
+    // Out of time in this step
+    movementTime = this.deathTimer;   // use up remaining
+    this.deathTimer = 0;
+  }
+  else {
+    movementTime = timeElapsed;
+    this.deathTimer = this.deathTimer - timeElapsed;
+  }
+
+  return movementTime;
+}
+
+Bot.prototype.doDeath = function( movementTime )
+{
+  // drop down, shrink and rotate
+  var movementThisFrame = movementTime * (this.stepSize / OP_TIME_STEP);
+
+  var rotationThisFrame = movementTime * (ROTATE_STEP / OP_TIME_STEP);
+
+  this.moveInFall = -movementThisFrame;
+  this.rotationInFall += rotationThisFrame;
 }
 
 /**
@@ -341,11 +428,11 @@ Bot.prototype.moveAccordingToInstruction = function( movementTime )
 
 		if( currentOp == this.instructionMgr.instructionConfig.FORWARD )
 		{
-			this.move = movementThisFrame;
+			this.moveOnRoad = movementThisFrame;
 		}
 		else
 		{
-			this.move = -movementThisFrame;
+			this.moveOnRoad = -movementThisFrame;
 		}
 	}
 	else if( currentOp == this.instructionMgr.instructionConfig.LEFT ||
@@ -355,11 +442,11 @@ Bot.prototype.moveAccordingToInstruction = function( movementTime )
 
 		if( currentOp == this.instructionMgr.instructionConfig.LEFT )
 		{
-			this.rotation += rotationThisFrame;
+			this.rotationOnRoad += rotationThisFrame;
 		}
 		else
 		{
-			this.rotation -= rotationThisFrame;
+			this.rotationOnRoad -= rotationThisFrame;
 		}
 	}
 }
@@ -374,13 +461,22 @@ Bot.prototype.updateMesh = function ()
 {
 	if( this.mesh != null && typeof(this.mesh) != "undefined" )
 	{
-		this.mesh.rotation.set( 0, this.rotation, 0.0, 'XYZ' );
+		this.mesh.rotation.set( this.rotationInFall, this.rotationOnRoad, 0.0, 'XYZ' );
 
-		if( this.move != 0 )
+		if( this.moveOnRoad != 0 )
 		{
-			this.mesh.translateZ( this.move );
+			this.mesh.translateZ( this.moveOnRoad );
 
-			this.move = 0; 		// we moved, so reset
+			this.moveOnRoad = 0; 		// we moved, so reset
+		}
+
+    if( this.moveInFall != 0 )
+		{
+      // Don't translateY as 'down' changes depending on orientation of object
+      // instead we need to move along world Y via position
+      this.mesh.position.y = this.mesh.position.y + this.moveInFall;
+
+			this.moveInFall = 0; 		// we moved, so reset
 		}
 	}
 }
