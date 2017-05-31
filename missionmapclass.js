@@ -16,28 +16,15 @@ var ALGO = ALGO || {};
 /**
 * constructor
 * @class The MapManager class. Manages maps in the game.
-*
-* @param {THREE.TextureLoader} textureLoader - for loading textures
-* @param {function} callbackFn - called when map manger is ready (i.e. textures loaded)
 */
-var MapManager = function ( textureLoader, callbackFn )
+var MapManager = function ()
 {
-	// ctor
-	this.textureLoader = textureLoader;
-
 	this.tileLength = 0; 	// resized after bot is loaded
 	this.tileHeight = 0.1; 	// resized after bot is loaded
 
-  // tileConfig;
-  // updated with loadedTexture & loadedTextureFlipped when loaded
-  this.tileConfig = {
-    tile_bottom_deadend: { textureFile: 'road/256_tear_bottom.png' },
-    tile_vert: { textureFile: 'road/256_vertical.png' },
-    tile_tjunct_horiz_up: { textureFile: 'road/256_tjunct_horizontal_up.png' },
-    tile_horiz: { textureFile: 'road/256_horizontal.png' },
-    tile_left_deadend: { textureFile: 'road/256_left_tear.png' },
-    tile_right_deadend: { textureFile: 'road/256_right_tear.png' }
-  };
+  	// tileConfig;
+  	// updated with loadedTexture & loadedTextureFlipped when loaded
+  	this.tileConfig = {};
 
 	this.tileTextures = {}; 	// loaded later. key = id, value = {texture, flippedTexture}
 
@@ -45,53 +32,63 @@ var MapManager = function ( textureLoader, callbackFn )
 
 	this.activeMapObjects = []; 	// updated when a map is loaded
 
-  this.loadedTextures = {};   // texture path/name to loaded texture;
+  	this.loadedTextures = {};   // texture path/name to loaded texture;
 
 	// Positioning:
 	// 	All tile positions are relative to the start tile (at 0,0)
 	//      (on which the bus will be placed).
 	//      Positions should be unique i.e. only one tile in a particular spot
 	//	Positions values will be translated to world coordinates
-	this.hardcodedMaps = [
-		{
-			// mapId: 0,
-			tileLayout: [
-				// Start; 0, 0  means start: all other tiles are relative to start
-				{ x: 0, z:-1, id: 'tile_bottom_deadend' },
-				{ x: 0, z: 0, id: 'tile_vert' }, 	// start pos
-				{ x: 0, z: 1, id: 'tile_vert' },
-				{ x: 0, z: 2, id: 'tile_tjunct_horiz_up' },
-				{ x: 1, z: 2, id: 'tile_horiz' },
-				{ x:-1, z: 2, id: 'tile_horiz' },
-				{ x:-2, z: 2, id: 'tile_left_deadend' },
-				{ x: 2, z: 2, id: 'tile_right_deadend' }
-			]
-		},
-		{
-			// mapId: 1,
-			tileLayout: [
-				// Start; 0, 0  means start: all other tiles are relative to start
-        { x: 0, z:-1, id: 'tile_bottom_deadend' },
-				{ x: 0, z: 0, id: 'tile_vert' }, 	// start pos
-				{ x: 0, z: 1, id: 'tile_vert' },
-				{ x: 0, z: 2, id: 'tile_tjunct_horiz_up' },
-				{ x: 1, z: 2, id: 'tile_horiz' },
-				{ x:-1, z: 2, id: 'tile_horiz' },
-				{ x:-2, z: 2, id: 'tile_left_deadend' },
-				{ x: 2, z: 2, id: 'tile_right_deadend' }
-			]
-		},
-		// other maps here
-	];
+	this.jsonMaps = [];
 
-  // load the textures
+	// set to 1 when the JSON map/tile config has been loaded
+	this.mapLoaded = 0;
+}
+
+/**
+*  load
+*
+* @param {THREE.TextureLoader} textureLoader - for loading textures
+* @param {function} callbackFn - called when map manger is ready (i.e. textures loaded)
+*/
+MapManager.prototype.load = function (textureLoader, callbackFn )
+{
+	this.mapLoaded = 0;
+	var instance = this; 	// so we can access map inside anon-function
+
+	this.loadJSON("maps_set1.json",
+			function(data) {
+				instance.jsonMaps = data.mapDefinition;
+				instance.tileConfig = data.tileConfig;
+				instance.mapLoaded = 1;
+			},
+			function(xhr) { console.error(xhr); }
+	);
+
+	var waitForLoad = setInterval( function(){
+		if( instance.mapLoaded == 1 )
+		{
+			instance.loadTextures( textureLoader, callbackFn  );
+			clearInterval( waitForLoad );
+		}
+	}, 100 );
+}
+
+/**
+*  loadTextures
+*
+* @param {THREE.TextureLoader} textureLoader - for loading textures
+* @param {function} callbackFn - called when map manger is ready (i.e. textures loaded)
+*/
+MapManager.prototype.loadTextures = function (textureLoader, callbackFn )
+{
 	for( var tileId in this.tileConfig )
 	{
 		var tileEntry = this.tileConfig[tileId];
 		if( tileEntry && tileEntry.hasOwnProperty("textureFile") )
 		{
 			// Load texture
-			this.textureLoader.load( "textures/" + tileEntry.textureFile,
+			textureLoader.load( "textures/" + tileEntry.textureFile,
 
 				// on load
 				(function() {	var tileEntry_ = tileEntry; return function( texture )	{
@@ -108,12 +105,12 @@ var MapManager = function ( textureLoader, callbackFn )
 				(function() {	var tileEntry_ = tileEntry; return function( xhr ) {
 					//console.log( 'Error loading textures/' + tileEntry_.textureFile );
 				}	})()
-      );
+      		);
 
 			// Load Flipped Texture
 			// TBD clone() doesn't seem to be working.. so doing a duplicate load for now.
 			// var flippedTexture = texture.clone();
-			this.textureLoader.load( "textures/" + tileEntry.textureFile,
+			textureLoader.load( "textures/" + tileEntry.textureFile,
 				// on load
 				(function() {	var tileEntry_ = tileEntry; return function( texture )	{
 					//console.log("loaded flipped texture " + texture.id)
@@ -131,73 +128,42 @@ var MapManager = function ( textureLoader, callbackFn )
 					//console.log( 'Error loading textures/' + tileEntry_.textureFile );
 				}	})()
 			);
-    }
-  }
+    	}
+  	}
 
 	function createMyInterval(f,dynamicParameter,interval) { return setInterval(function() { f(dynamicParameter); }, interval); }
 	var waitForTextures = createMyInterval(
 		function(tileConfig) {
-	    var allDone = true;
+	    	var allDone = true;
 			for( var tileId in tileConfig )
 			{
 				var tileEntry = tileConfig[tileId];
-	      if( tileEntry.hasOwnProperty("loadedTexture") == false ||
+	      		if( tileEntry.hasOwnProperty("loadedTexture") == false ||
 						tileEntry.hasOwnProperty("loadedTextureFlipped") == false )
-	      {
+	      		{
 					// at least one not loaded, so continue to wait
-	        allDone = false;
-	        break;
-	      }
-	    }
-	    if( allDone == true )
-	    {
+	        		allDone = false;
+	        		break;
+	      		}
+	    	}
+	    	if( allDone == true )
+	    	{
 				// all tile textures loaded, inform caller via callback
-	      clearInterval(waitForTextures);
-	      if( callbackFn && typeof(callbackFn) === "function")
-	      {
-	        callbackFn();
-	      }
-	    }
-	}, this.tileConfig, 500 );
+	      		clearInterval(waitForTextures);
+	      		if( callbackFn && typeof(callbackFn) === "function")
+	      		{
+	        		callbackFn();
+	      		}
+	    	}
+		}, this.tileConfig, 500 );
 
-};
+}
 
 /**
 * Class Constants
 *
 */
 MapManager.prototype.INITIAL_MAP_ID = 0;
-
-
-/**
-* loadMapSummary()
-* Loads the map summary from the specified file. TODO Not called at present
-*
-* @param {string} map - name of file holding desired JSON map summary definition
-*
-*/
-MapManager.prototype.loadMapSummary = function( map )
-{
-	// TODO Load from JSON file defining availble maps and play sequence. Hardcode for now
-	this.availableMaps = [
-		{
-			id: 0,
-			name: "initial map test",
-			difficulty: 1,
-			instructions: "pickup person",
-			fileName: "TODO1",
-			playSequence: 1
-		},
-		{
-			id: 1,
-			name: "second level map test",
-			difficulty: 4,
-			instructions: "pickup 600 people",
-			fileName: "TODO2",
-			playSequence: 2
-		}
-	];
-};
 
 /**
 * loadMap()
@@ -213,8 +179,7 @@ MapManager.prototype.loadMap = function( mapId )
 		mapId = 0;
 	}
 
-	// TODO: Load JSON file for specific map level. Hardcode for now
-	var mapDef = this.hardcodedMaps[ mapId ];  // var mapDef = this.load( mapId );
+	var mapDef = this.jsonMaps[ mapId ]; 
 
 	this.createMapObjects( mapDef );
 };
@@ -295,7 +260,7 @@ MapManager.prototype.createMapObjects = function( mapDef )
 }
 
 /**
-*
+* getTileObjects
 *
 *
 */
@@ -367,4 +332,32 @@ MapManager.prototype.removeMapFromScene = function ( sceneToUpdate )
 MapManager.prototype.update = function ( timeElapsed )
 {
 	// TODO animate the map?
+}
+
+/**
+* loadJSON()
+*
+* @param {string} path - file name (and path) of JSON map file
+* @param {function} successFn 
+* @param {function} errorFn 
+*/
+MapManager.prototype.loadJSON = function(path, successFn, errorFn)
+{
+	var xhr = new XMLHttpRequest();
+	xhr.onreadystatechange = function()
+	{
+		if (xhr.readyState === XMLHttpRequest.DONE) {
+			if (xhr.status === 200) {
+				if (successFn) {
+					successFn(JSON.parse(xhr.responseText));
+				}
+			} else {
+				if (errorFn) {
+					errorFn(xhr);
+				}
+			}
+		}
+	};
+	xhr.open("GET", path, true);
+	xhr.send();
 }

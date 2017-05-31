@@ -139,7 +139,7 @@
 						// adjust map and bot step measurements according to Bot length
 						g_MapManager.resize( g_Bot.getStepSize(), 0.1 );
 
-						g_MapManager.loadMap();
+						g_MapManager.loadMap(0);
 
 						g_MapManager.addMapToScene( g_Scene );
 
@@ -265,7 +265,9 @@
 			function addMapManager( textureLoader )
 			{
 				g_MapLoaded = false;
-				g_MapManager = new MapManager( textureLoader, function(){ g_MapLoaded = true; } );
+				g_MapManager = new MapManager();
+
+				g_MapManager.load( textureLoader, function(){ g_MapLoaded = true; } );
 			}
 
 			function addInstructionManager( )
@@ -508,6 +510,7 @@
 					}
 				}
 			}
+
 
 			//
 			// Debugging Functions
