@@ -429,8 +429,20 @@
 
 				if( g_Bot.mesh != null && typeof(g_Bot.mesh) != "undefined" )
 				{
-		        	g_Camera.updateProjectionMatrix();
-							g_Camera.lookAt( g_Bot.mesh.position );
+					// If we're running instructions then follow the bot, otherwise allow zoom, rotate etc..
+					if( g_InstructionMgr.isRunning() )
+					{
+						g_MouseControls.enabled = false;
+
+						g_Camera.updateProjectionMatrix();
+						g_Camera.position.set(g_Bot.mesh.position.x, g_Bot.mesh.position.y + 60, g_Bot.mesh.position.z -40);
+						g_Camera.lookAt( g_Bot.mesh.position );
+					}
+					else
+					{
+						g_MouseControls.enabled = true;
+					}
+
 				}
 			}
 
