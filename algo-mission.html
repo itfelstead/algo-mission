@@ -82,6 +82,8 @@
 			// Collision Detection
 			var g_Raycaster;
 
+			// overlays a grid to help users
+			var g_GridHelperObject;
 
 			// Game Loop Globals
 			const UPDATE_TIME_STEP = 0.033; // 33ms = approx 30 FPS
@@ -123,8 +125,6 @@
 
 				addControlPanel( g_InstructionMgr, g_TextureLoader );
 
-				addAxisHelper();
-
 				addMapManager( g_TextureLoader );
 
 				g_BotLoaded = false;
@@ -158,9 +158,13 @@
 					if( g_BotLoaded == true &&
 						  g_SkyLoaded == true &&
 						  g_MapLoaded == true )
-				  {
-						  clearInterval( waitForLoad );
-							removeLoadingScreen();
+				  	{
+						clearInterval( waitForLoad );
+
+						addAxisHelper();
+						toggleGridHelper();
+
+						removeLoadingScreen();
 					}
 				}, 100 );
 
@@ -490,6 +494,10 @@
 							g_Bot.prepareForNewInstruction();
 						}
 					}
+					else if( instructionClicked == g_InstructionMgr.instructionConfig.GRID )
+					{
+						toggleGridHelper();
+					}
 					else
 					{
 						g_InstructionMgr.addInstruction( instructionClicked );
@@ -511,6 +519,42 @@
 				}
 			}
 
+			function toggleGridHelper()
+			{
+				if( g_GridHelperObject==null || g_Scene.getObjectByName("GridHelper")==null )
+				{
+					if( g_GridHelperObject == null )
+					{
+						var botSize = g_Bot.getStepSize();
+
+						var size = (botSize * 7) + 1;
+						var step = botSize;
+						var height = 1; 	// +ve = above road
+
+						var gridGeo = new THREE.Geometry();
+						var gridMaterial = new THREE.LineBasicMaterial( {color: 'white'});
+
+						// start from -1
+						var behindBus = 0 - step;
+						for( var horiz = behindBus; horiz <= size; horiz += step ) {
+							gridGeo.vertices.push( new THREE.Vector3( -size, height, horiz ) );
+							gridGeo.vertices.push( new THREE.Vector3( size, height, horiz ) );
+						}
+						for( var vert = -size; vert <= size; vert += step ) {
+							gridGeo.vertices.push( new THREE.Vector3( vert, height, behindBus) );
+							gridGeo.vertices.push( new THREE.Vector3( vert, height, size ) );
+						}
+
+						g_GridHelperObject = new THREE.Line( gridGeo, gridMaterial, THREE.LinePieces );
+					}
+					g_GridHelperObject.name = "GridHelper";
+					g_Scene.add( g_GridHelperObject );
+				}
+				else
+				{
+					g_Scene.remove( g_GridHelperObject );
+				}
+			}
 
 			//
 			// Debugging Functions
@@ -520,6 +564,7 @@
 			{
 				g_Scene.add( new THREE.AxisHelper( 50 ) );
 			}
+
 		</script>
 
 	</body>

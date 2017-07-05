@@ -36,6 +36,7 @@ InstructionManager.prototype.instructionConfig = Object.freeze(
 	   	FIRE: 6,
 	   	PAUSE: 7,
 	   	CLEAR: 8,
+		GRID: 9,
 
 	   	properties: {
 			1: {displayString: "forward<p>", value: 1},
@@ -45,7 +46,8 @@ InstructionManager.prototype.instructionConfig = Object.freeze(
 	       	5: {displayString: "go<p>", value: 5},
 	       	6: {displayString: "fire!<p>", value: 6},
 	       	7: {displayString: "pause..<p>", value: 7},
-	       	8: {displayString: "", value: 8}
+	       	8: {displayString: "", value: 8},
+			9: {displayString: "", value: 9}
 		}
 	}
 );

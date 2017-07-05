@@ -156,7 +156,7 @@ ControlPanel.prototype.addControlPanelButtons = function( instructionMgr, textur
 	//                 [forward]
 	//           [left] [pause] [right]
 	//    [fire]        [back]
-	//           [clear]        [go]
+	//           [clear][grid][go]
 	//
 	var boxSize = 1; 	// for display size is irrelevant as FoV will alter to fill window
 	var gridSize = 4; 	// panel buttons are placed on a 4x4 grid
@@ -170,6 +170,7 @@ ControlPanel.prototype.addControlPanelButtons = function( instructionMgr, textur
 		{ "id": instructionMgr.instructionConfig.LEFT,  "x": 2, "y": 2, "z": defaultZ, "pic": "Left256.png" },
 		{ "id": instructionMgr.instructionConfig.RIGHT, "x": 0, "y": 2, "z": defaultZ, "pic": "Right256.png" },
 		{ "id": instructionMgr.instructionConfig.CLEAR, "x": 2, "y": 0, "z": defaultZ, "pic": "Clear256.png" },
+		{ "id": instructionMgr.instructionConfig.GRID, "x": 1, "y": 0, "z": defaultZ, "pic": "Grid256.png" },
 		{ "id": instructionMgr.instructionConfig.GO,    "x": 0, "y": 0, "z": defaultZ, "pic": "Go256.png" },
 		{ "id": instructionMgr.instructionConfig.FIRE,  "x": 3, "y": 1, "z": defaultZ, "pic": "Fire256.png" },
 		{ "id": instructionMgr.instructionConfig.PAUSE, "x": 1, "y": 2, "z": defaultZ, "pic": "Stop256.png" }

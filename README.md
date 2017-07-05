@@ -11,12 +11,16 @@ This project aims to create a three.js based path programmable object much like 
 Screenshot:
 ![alt tag](https://cloud.githubusercontent.com/assets/5990178/19145914/21829310-8ba9-11e6-9619-04fbb6d4f722.JPG)
 
-To run locally you can use node.js's http-server (otherwise see https://github.com/mrdoob/three.js/wiki/How-to-run-things-locally).
+To run locally you can use node.js's http-server (otherwise see https://threejs.org/docs/#manual/introduction/How-to-run-thing-locally )
 e.g.
 	install node.js
+
 	npm install http-server -g
+
 	navigate to your algo-mission dir
+
 	http-server
+
 	point your browser at http://127.0.0.1:8080/algo-mission.html
 
 Ian Felstead
