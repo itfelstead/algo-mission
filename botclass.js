@@ -25,6 +25,14 @@ var TState = {
   DEAD: 6
 };
 
+var TDeathSpin = {
+   UNKNOWN: 0,
+   LEFT: 1,
+   RIGHT: 2,
+   BACK: 3,
+   FORWARDS: 4
+};
+
 /**
 * constructor
 * @class The bot class. Represents the main character in the game.
@@ -122,7 +130,6 @@ Bot.prototype.getStepSize = function( )
 */
 Bot.prototype.isBusy = function()
 {
-  console.log("state is " + this.state)
   return this.state == TState.EXECUTING ||
          this.state == TState.WAITING ||
          this.state == TState.DYING ||
@@ -236,7 +243,6 @@ Bot.prototype.updateState = function()
     // Change state if required
     if( this.state != newState )
     {
-      console.log("changing to state " + newState);
       this.onExitState();
       this.state = newState;
       this.onEnterState();
@@ -265,9 +271,39 @@ Bot.prototype.onEnterState = function()
     break;
 
     case TState.DYING:
-      this.deathTimer = OP_DEATH_TIME_STEP;
+      setupDeath();
     break;
   }
+}
+
+/**
+* setupDeath()
+*
+*
+*/
+Bot.prototype.setupDeath = function()
+{
+    this.deathTimer = OP_DEATH_TIME_STEP;
+    this.deathSpin = TDeathSpin.UNKNOWN;
+
+    var wayFacing = this.mesh.getWorldRotation();
+    if( wayFacing.y < 0 )
+    {
+      if( wayFacing.y >= -2 && wayFacing.y <= -1 ) {
+          this.deathSpin = TDeathSpin.RIGHT;
+      }
+      else {
+          this.deathSpin = TDeathSpin.BACK;
+      }
+    }
+    else {
+      if( wayFacing.y >= 1 && wayFacing.y <= 2 ) {
+          this.deathSpin = TDeathSpin.LEFT;
+      }
+      else {
+          this.deathSpin = TDeathSpin.FORWARD;
+      }
+    }
 }
 
 /**
@@ -461,7 +497,31 @@ Bot.prototype.updateMesh = function ()
 {
 	if( this.mesh != null && typeof(this.mesh) != "undefined" )
 	{
-		this.mesh.rotation.set( this.rotationInFall, this.rotationOnRoad, 0.0, 'XYZ' );
+
+    var x = 0.0;
+    var y = this.rotationOnRoad;
+    var z = 0.0;
+
+    if( this.state == TState.DYING ) {
+
+      if( this.deathSpin == TDeathSpin.LEFT ) {
+        z = -this.rotationInFall;
+      }
+      else if( this.deathSpin == TDeathSpin.RIGHT) {
+        z = this.rotationInFall;
+      }
+      else if( this.deathSpin == TDeathSpin.BACK )
+      {
+        x = -this.rotationInFall;
+      }
+      else if( this.deathSpin == TDeathSpin.FORWARD )
+      {
+        x = this.rotationInFall;
+      }
+      
+    }
+
+    this.mesh.rotation.set( x, y, z, 'XZY' );
 
 		if( this.moveOnRoad != 0 )
 		{
@@ -475,7 +535,6 @@ Bot.prototype.updateMesh = function ()
       // Don't translateY as 'down' changes depending on orientation of object
       // instead we need to move along world Y via position
       this.mesh.position.y = this.mesh.position.y + this.moveInFall;
-
 			this.moveInFall = 0; 		// we moved, so reset
 		}
 	}
