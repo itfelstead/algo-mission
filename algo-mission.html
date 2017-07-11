@@ -90,6 +90,12 @@
 			var g_Clock;
 			var g_Lag = 0; 	// used in game loop for fixed step update
 
+			var g_AudioListener;
+			var g_AmbientButtonClickSound;
+			var g_AmbientBusMoveSound;
+			var g_AmbientBusHornSound;
+			var g_AudioLoaded;
+
 			// Main
 
 			console.log( "algo-mission v" + VERSION + " starting..." );
@@ -127,6 +133,8 @@
 
 				addMapManager( g_TextureLoader );
 
+				addAudio( g_Camera );
+
 				g_BotLoaded = false;
 				addBot( g_InstructionMgr, g_MapManager, botCreatedCb );
 
@@ -147,7 +155,6 @@
 					}
 				}, 100 );
 
-
 				setupGameLoop();
 
 				setupCollisionDetection();
@@ -157,11 +164,11 @@
 				var waitForLoad = setInterval( function(){
 					if( g_BotLoaded == true &&
 						  g_SkyLoaded == true &&
-						  g_MapLoaded == true )
+						  g_MapLoaded == true &&
+						  g_AudioLoaded == true )
 				  	{
 						clearInterval( waitForLoad );
 
-						addAxisHelper();
 						toggleGridHelper();
 
 						removeLoadingScreen();
@@ -251,13 +258,37 @@
 				);
 			}
 
+			function addAudio( camera )
+			{
+				g_AudioLoaded = false;
+
+				g_AudioListener = new THREE.AudioListener();
+				camera.add( g_AudioListener );
+
+				g_AmbientButtonClickSound = new THREE.Audio( g_AudioListener );
+				g_Scene.add( g_AmbientButtonClickSound );
+
+				var loader = new THREE.AudioLoader();
+				loader.load( 'audio/107132__bubaproducer__button-14.wav',
+					function ( audioBuffer ) {
+						//on load
+						g_AmbientButtonClickSound.setBuffer( audioBuffer );
+						g_AudioLoaded = true;
+					} 
+					); 
+
+			}
+
 			// calls botCb() when bot is ready
 			function addBot( instructionMgr, mapManager, botCb )
 			{
 				g_Bot = new Bot( instructionMgr, mapManager );
 				g_Bot.load( "models/ToonBus_VijayKumar.json",
 								"textures/Toon_Bus_Texture.jpg",
-								g_JSONLoader, g_TextureLoader, botCb );
+								g_JSONLoader, 
+								g_TextureLoader, 
+								g_AudioListener, 
+								botCb );
 			}
 
 			function botCreatedCb()
@@ -488,6 +519,8 @@
 
 				if( instructionClicked )
 				{
+					g_AmbientButtonClickSound.play();
+
 					// We handle CLEAR and GO here, others are added to the instruction list
 					if( instructionClicked == g_InstructionMgr.instructionConfig.CLEAR )
 					{

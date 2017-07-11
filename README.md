@@ -41,3 +41,19 @@ Road art (textures/road/*)
 Modified version of Road_test.png from www.adebgamesoft.be
 http://creativecommons.org/publicdomain/zero/1.0/
 (http://opengameart.org/content/top-down-road-tileset)
+
+Audio: from freesound.org; 
+Bus sound: (86044__nextmaking__bus.aif) - bus.aif by nextmaking
+https://creativecommons.org/licenses/sampling+/1.0/
+
+Button sound: (107132__bubaproducer__button-14.wav) button 14.wav by bubaproducer
+https://creativecommons.org/licenses/by/3.0/
+
+Bus horn: (43801__daveincamas__modelahorn.wav) ModelAHorn.wav by daveincamas
+https://creativecommons.org/licenses/by/3.0/
+
+Falling: (360662__inspectorj__falling-comedic-a.wav) Falling, Comedic, A.wav by InspectorJ
+https://creativecommons.org/licenses/by/3.0/
+
+Bus wait: (333083__soundslikewillem__releasing-pressure.wav) Releasing Pressure by soundslikewillem
+https://creativecommons.org/licenses/by-nc/3.0/

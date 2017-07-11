@@ -206,7 +206,7 @@ InstructionManager.prototype.nextInstruction = function()
 	if( this.instructionPtr >= this.instructions.length )
 	{
 		this.instructionPtr = this.instructionConfig.NO_INSTRUCTION;
-    return undefined;
+    	return undefined;
 	}
 
 	return this.instructions[ this.instructionPtr ];

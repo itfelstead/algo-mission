@@ -12,7 +12,7 @@
 var ALGO = ALGO || {};
 
 var OP_TIME_STEP = 2; 			// time in secs to execute an instruction
-var OP_DEATH_TIME_STEP = 10;
+var OP_DEATH_TIME_STEP = 4;
 var OP_DELAY = 0.5; 			// delay between operations
 var ROTATE_STEP = 90 * Math.PI/180; 	// Turn by 90 degrees (in radians)
 
@@ -44,6 +44,12 @@ var Bot = function ( instructionMgr, mapManager )
 
   this.mapManager = mapManager;   // for map tile collision detection
 
+  this.audioBusHorn = null;
+  this.audioBusMove = null;
+  this.audioBusFall = null;
+  this.audioBusTurn = null;
+  this.audioBusWait = null;
+
   this.raycaster = new THREE.Raycaster();
 
 	this.modelFile = null;
@@ -65,6 +71,7 @@ var Bot = function ( instructionMgr, mapManager )
 
   this.instructionReady = 0;  // 1 if there is an instruction waiting for us
   this.isLoaded = 0;          // 1 if bot is loaded and ready
+
 
   this.state = TState.INITIAL;
 };
@@ -96,7 +103,16 @@ Bot.prototype.calculateStepSize = function()
 * @param {THREE.TextureLoader} textureLoader - texture loader
 * @param {function} isCreatedCallback - callback to call when complete
 */
-Bot.prototype.load = function( model, texture, jsonLoader, textureLoader, isCreatedCallback )
+Bot.prototype.load = function( model, texture, jsonLoader, textureLoader, audioListener, isCreatedCallback )
+{
+  this.loadModel( model, texture, jsonLoader, textureLoader, isCreatedCallback );
+
+  this.loadAudio( audioListener );
+
+  this.waitForLoad( isCreatedCallback, this );
+};
+
+Bot.prototype.loadModel = function( model, texture, jsonLoader, textureLoader, isCreatedCallback )
 {
 	var loadedTexture = textureLoader.load( texture );
 
@@ -111,12 +127,68 @@ Bot.prototype.load = function( model, texture, jsonLoader, textureLoader, isCrea
 	 	instance.mesh = new THREE.Mesh( geometry, material );
 
 		instance.calculateStepSize();
-
-    instance.isLoaded = 1;
-
-		isCreatedCallback();
 	} );
-};
+}
+
+Bot.prototype.loadAudio = function( audioListener )
+{
+  var loader = new THREE.AudioLoader();
+
+	var instance = this; 	// so we can access bot inside anon-function
+
+	loader.load( 'audio/43801__daveincamas__modelahorn.wav',
+      function ( audioBuffer ) {
+        //on load
+        instance.audioBusHorn = new THREE.Audio( audioListener );
+        instance.audioBusHorn.setBuffer( audioBuffer );
+      } 
+    );
+  	loader.load( 'audio/86044__nextmaking__bus.wav',
+      function ( audioBuffer ) {
+        //on load
+        instance.audioBusMove = new THREE.Audio( audioListener );
+        instance.audioBusMove.setBuffer( audioBuffer );
+      } 
+    ); 
+    loader.load( 'audio/86044__nextmaking__bus_reversed.wav',
+      function ( audioBuffer ) {
+        //on load
+        instance.audioBusTurn = new THREE.Audio( audioListener );
+        instance.audioBusTurn.setBuffer( audioBuffer );
+      } 
+    ); 
+    loader.load( 'audio/360662__inspectorj__falling-comedic-a.wav',
+      function ( audioBuffer ) {
+        //on load
+        instance.audioBusFall = new THREE.Audio( audioListener );
+        instance.audioBusFall.setBuffer( audioBuffer );
+      } 
+    ); 
+    loader.load( 'audio/333083__soundslikewillem__releasing-pressure.wav',
+      function ( audioBuffer ) {
+        //on load
+        instance.audioBusWait = new THREE.Audio( audioListener );
+        instance.audioBusWait.setBuffer( audioBuffer );
+      } 
+    ); 
+}
+
+Bot.prototype.waitForLoad = function( isCreatedCallback, context ) 
+{
+  var waitForAll = setInterval( function(){
+    if( context.mesh != null &&
+        context.audioBusMove != null &&
+        context.audioBusTurn != null &&
+        context.audioBusHorn != null &&
+        context.audioBusWait != null &&
+        context.audioBusFall != null )
+      {
+        clearInterval( waitForAll );
+        context.isLoaded = 1;
+        isCreatedCallback();
+    }
+  }, 100 );
+}
 
 Bot.prototype.getStepSize = function( )
 {
@@ -196,6 +268,8 @@ Bot.prototype.updateState = function()
           {
             // instruction execution triggered via prepareForNewInstruction()
             newState = TState.EXECUTING;
+
+            this.preInstructionStart();
           }
         break;
 
@@ -259,6 +333,7 @@ Bot.prototype.onEnterState = function()
   switch(this.state)
   {
     case TState.READY:
+              this.scale = 1.0;
     break;
 
     case TState.EXECUTING:
@@ -271,8 +346,48 @@ Bot.prototype.onEnterState = function()
     break;
 
     case TState.DYING:
-      setupDeath();
+      this.setupDeath();
     break;
+  }
+}
+
+/**
+* handleInstructionStartAudio()
+*
+*
+*/
+Bot.prototype.preInstructionStart = function()
+{
+  var currentOp = this.instructionMgr.currentInstruction();
+
+  if( currentOp == this.instructionMgr.instructionConfig.FIRE )
+  {
+    if( this.audioBusHorn != null )
+    {
+      this.audioBusHorn.play();
+    }
+  }
+  else if( currentOp == this.instructionMgr.instructionConfig.PAUSE )
+  {
+    if( this.audioBusWait != null )
+    {
+      this.audioBusWait.play();
+    }
+  }
+  else if( currentOp == this.instructionMgr.instructionConfig.LEFT ||
+           currentOp == this.instructionMgr.instructionConfig.RIGHT )
+  {
+    if( this.audioBusTurn != null )
+    {
+      this.audioBusTurn.play();
+    }
+  }
+  else
+  {
+    if( this.audioBusMove != null )
+    {
+      this.audioBusMove.play();
+    }
   }
 }
 
@@ -285,6 +400,8 @@ Bot.prototype.setupDeath = function()
 {
     this.deathTimer = OP_DEATH_TIME_STEP;
     this.deathSpin = TDeathSpin.UNKNOWN;
+
+    this.audioBusFall.play();
 
     var wayFacing = this.mesh.getWorldRotation();
     if( wayFacing.y < 0 )
@@ -340,7 +457,7 @@ Bot.prototype.onExitState = function()
 *
 *
 */
-// This methods should only be called is the bot isn't busy (isBusy())
+// This method should only be called if the bot isn't busy (isBusy())
 Bot.prototype.prepareForNewInstruction = function()
 {
   this.instructionReady = 1;
@@ -439,13 +556,23 @@ Bot.prototype.calculateDeathTime = function( timeElapsed )
 
 Bot.prototype.doDeath = function( movementTime )
 {
+  var fallSpeed = this.stepSize*4;
+
   // drop down, shrink and rotate
-  var movementThisFrame = movementTime * (this.stepSize / OP_TIME_STEP);
+  var movementThisFrame = movementTime * (fallSpeed/ OP_TIME_STEP);
 
   var rotationThisFrame = movementTime * (ROTATE_STEP / OP_TIME_STEP);
 
+  // shrink 100% in this.deathTimer ms
+  var shrinkageThisFrame = movementTime * (1.0 / OP_DEATH_TIME_STEP);
+
   this.moveInFall = -movementThisFrame;
   this.rotationInFall += rotationThisFrame;
+  this.scale = this.scale - shrinkageThisFrame;
+  if( this.scale < 0 ) {
+    this.scale = 0;
+  }
+  console.log( "shrinkage = " + this.scale);
 }
 
 /**
@@ -518,7 +645,8 @@ Bot.prototype.updateMesh = function ()
       {
         x = this.rotationInFall;
       }
-      
+
+      this.mesh.scale.set( this.scale, this.scale, this.scale );
     }
 
     this.mesh.rotation.set( x, y, z, 'XZY' );
