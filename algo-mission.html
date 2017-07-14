@@ -92,22 +92,188 @@
 
 			var g_AudioListener;
 			var g_AmbientButtonClickSound;
-			var g_AmbientBusMoveSound;
-			var g_AmbientBusHornSound;
 			var g_AudioLoaded;
+
+			var TAppState = {
+				INITIAL: 1,
+				READY: 2,
+				WAITING: 3,
+				RUNNING: 4,
+				DEAD: 6,
+				RETRY: 7,
+				SELECTMAP: 8
+			};
+
+			var g_State = TAppState.INITIAL;
+			var g_Retry = false;
+			var g_SelectMap = false;
 
 			// Main
 
 			console.log( "algo-mission v" + VERSION + " starting..." );
 
+			g_State = TAppState.INITIAL;
 			initialise();
 
+			g_State = TAppState.READY;
 			gameLoop(); 	// intial kickoff, subsequest calls via requestAnimationFrame()
 
 			console.log( "...algo-mission complete." );
 
 			// ---------------
 
+			function actOnState( ) 
+			{
+				switch( g_State )
+				{
+					case TAppState.INITIAL:
+						// NOOP - should be initialised before we get here
+					break;
+
+					case TAppState.READY:
+						// allow user freedom to look around
+						g_MouseControls.enabled = true;
+					break;
+
+					case TAppState.RUNNING:
+
+						if( !g_Bot.isBusy() && g_InstructionMgr.nextInstruction() != undefined )
+						{
+							g_Bot.prepareForNewInstruction();
+						}
+
+						// camera must follow bot
+						g_MouseControls.enabled = false;
+
+						g_Camera.updateProjectionMatrix();
+						g_Camera.position.set(g_Bot.mesh.position.x, g_Bot.mesh.position.y + 60, g_Bot.mesh.position.z -40);
+						g_Camera.lookAt( g_Bot.mesh.position );
+					break;
+
+					case TAppState.DEAD:
+						// NOOP - we're just waiting for user to restart or choose map
+						g_MouseControls.enabled = false;
+					break;
+
+					case TAppState.RETRY:
+						g_Bot.respawnBot();
+					break;
+
+					case TAppState.SELECTMAP:
+						// todo
+					break;
+				}
+
+				if( g_State != TAppState.INITIAL && g_State != TAppState.DEAD ) {
+
+					g_ControlPanel.update( UPDATE_TIME_STEP );
+
+					g_Bot.update( UPDATE_TIME_STEP )
+
+					g_MapManager.update();
+				}
+			}
+
+			function updateState( timestep )
+			{
+			 	var newState = g_State;
+
+				switch( g_State )
+				{
+					case TAppState.INITIAL:
+						if( g_Bot.mesh != null && typeof(g_Bot.mesh) != "undefined" ) {
+							newState = TAppState.READY;
+						}
+					break;
+
+					case TAppState.READY:
+						if( g_InstructionMgr.isRunning() ) {
+							newState = TAppState.RUNNING;
+						}
+					break;
+
+					case TAppState.RUNNING:
+						if( g_Bot.isDead() ) {
+							newState = TAppState.DEAD;
+						}
+						else if( g_InstructionMgr.isRunning() == false ) {
+							newState = TAppState.READY;
+						}
+					break;
+
+					case TAppState.DEAD:
+						if( g_Retry == true ) {
+							newState = TAppState.RETRY;
+							g_Retry = false;
+						}
+						else if( g_SelectMap == true ) {
+							newState = TAppState.SELECTMAP;
+							g_SelectMap = false;
+						}
+					break;
+
+					case TAppState.RETRY:
+						if( !g_Bot.isDead() ) {
+							newState = TAppState.READY;
+						}
+					break;
+
+					case TAppState.SELECTMAP:
+						// todo
+					break;
+				}
+
+				// Change state if required
+				if( g_State != newState )
+				{
+					console.log("App State changing from " + g_State + " to " + newState);
+					onExitState();
+					g_State = newState;
+					onEnterState();
+				}
+			}
+
+			function onEnterState()
+			{
+				switch( g_State )
+				{
+					case TAppState.INITIAL:
+					break;
+					case TAppState.READY:
+					break;
+					case TAppState.RUNNING:
+					break;
+					case TAppState.DEAD:
+						displayDeathScreen();
+					break;
+					case TAppState.RETRY:
+					break;
+					case TAppState.SELECTMAP:
+						// todo
+					break;
+				}
+			}
+
+			function onExitState()
+			{
+				switch( g_State )
+				{
+					case TAppState.INITIAL:
+					break;
+					case TAppState.READY:
+					break;
+					case TAppState.RUNNING:
+					break;
+					case TAppState.DEAD:
+						removeDeathScreen();
+					break;
+					case TAppState.RETRY:
+					break;
+					case TAppState.SELECTMAP:
+						// todo
+					break;
+				}
+			}
 
 			//
 			// Initialisation
@@ -378,7 +544,7 @@
 					{
 						clearInterval(progressBarInterval);
 					}
-				},500 );
+				}, progressIntervalMs );
 			}
 
 			function removeLoadingScreen()
@@ -408,6 +574,111 @@
 					}
 				})();
 			}
+
+			function displayDeathScreen()
+			{
+				var loadDiv = document.createElement('div');
+
+				loadDiv.id = "deathScreen";
+				loadDiv.style.cssText =
+					"opacity: 0;" +
+					"background-image: url('./images/retry.jpg');" +
+					"background-repeat: no-repeat;"+
+					"background-size: cover;" +
+					"width: 50%;" +
+					"height: 50%;" +
+					"top: 50%;" +
+					"left: 50%;" +
+					"transform: translate(-50%, -50%); " + 	// makes sure we're dead center
+					"text-align: center;" +
+					"color: White;" +
+					"overflow: auto;" +
+					"position: fixed;" +
+					"font: 24px arial,serif;" +
+					"display:inline-block;" +
+					"}";
+
+				loadDiv.innerHTML = "Oops!... <p>" + 
+						"<button style='" +
+							"width: 25%;" +
+							"height: 100%;" +
+							"margin-left: 0%;" +
+							"position: relative;"+
+							"font: 24px arial,serif;" +
+						"'" +
+						" onclick='retryMap()'>Try again</button> " +
+
+						"<button style='" +
+							"width: 25%;" +
+							"height: 20%;" +
+							"margin-right: 0%;" +
+							"position: relative;"+
+							"top: 40%;" +
+							"font: 24px arial,serif;" +
+						"'" +
+						" onclick='selectMap()'>New road</button>";
+
+				document.body.appendChild(loadDiv);
+
+				var fadeStep = 0.07;
+				var fadePauseMs = 100;
+				var fade = 0.0;
+
+				(function fadeDivs()
+				{
+					document.getElementById("deathScreen").style.opacity = fade;
+
+					if( g_ControlPanel != null && g_InstructionMgr != null ) {
+						g_ControlPanel.setWindowOpacity( 1.0 - fade );
+						g_InstructionMgr.setWindowOpacity( 1.0 - fade );
+					}
+
+				  	fade += fadeStep;
+				  	if( fade < 1.0 )
+				  	{
+						setTimeout( fadeDivs, fadePauseMs );
+					}
+				})();
+			}
+
+			function retryMap()
+			{
+				g_Retry = true;
+			}
+
+			function selectMap()
+			{
+				g_SelectMap = true;
+			}
+
+			function removeDeathScreen()
+			{
+				var fadeStep = 0.1;
+				var fadePauseMs = 100;
+				var fade = 1.0;
+
+				// setting html to '' also tells the progress bar to finish
+			//	document.getElementById("deathScreen").innerHTML = "";
+
+				(function fadeDivs()
+				{
+					document.getElementById("deathScreen").style.opacity = fade;
+					g_ControlPanel.setWindowOpacity( 1.0 - fade );
+				    g_InstructionMgr.setWindowOpacity( 1.0 - fade );
+
+				  fade -= fadeStep;
+				  if( fade > 0 )
+				  {
+						setTimeout( fadeDivs, fadePauseMs );
+					}
+					else
+					{
+						document.getElementById("deathScreen").remove();
+						console.log("removing death screen");
+					}
+				})();
+			}
+
 
 			function setupCollisionDetection()
 			{
@@ -449,32 +720,8 @@
 			function update()
 			{
 				// Note: The time elapsed is UPDATE_TIME_STEP as we update in fixed steps
-
-				updateInstruction();
-
-				g_ControlPanel.update( UPDATE_TIME_STEP );
-
-				g_Bot.update( UPDATE_TIME_STEP )
-
-				g_MapManager.update();
-
-				if( g_Bot.mesh != null && typeof(g_Bot.mesh) != "undefined" )
-				{
-					// If we're running instructions then follow the bot, otherwise allow zoom, rotate etc..
-					if( g_InstructionMgr.isRunning() )
-					{
-						g_MouseControls.enabled = false;
-
-						g_Camera.updateProjectionMatrix();
-						g_Camera.position.set(g_Bot.mesh.position.x, g_Bot.mesh.position.y + 60, g_Bot.mesh.position.z -40);
-						g_Camera.lookAt( g_Bot.mesh.position );
-					}
-					else
-					{
-						g_MouseControls.enabled = true;
-					}
-
-				}
+				actOnState( UPDATE_TIME_STEP );
+				updateState();
 			}
 
 			function render( )
@@ -551,17 +798,6 @@
 				}
 
 				g_InstructionMgr.updateWindow();
-			}
-
-			function updateInstruction()
-			{
-				if( g_InstructionMgr.isRunning() )
-				{
-					if( !g_Bot.isBusy() && g_InstructionMgr.nextInstruction() != undefined )
-					{
-						g_Bot.prepareForNewInstruction();
-					}
-				}
 			}
 
 			function toggleGridHelper()

@@ -32,6 +32,7 @@ Optikz 2004 (from a post on blenderartists.org)
 
 Cartoon bus model (models/ToonBus_VijayKumar.json & textures/Toon_Bus_Texture.jpg);
 Toon Bus by VijayKumar is licensed under CC Attribution https://skfb.ly/PHVP
+https://sketchfab.com/models/39e900ebb63745d6871e8816c5f6b804
 (converted to JSON via Blender & three.js Blender export tool but otherwise untouched)
 
 Button art (textures/*.png);

@@ -44,7 +44,7 @@ InstructionManager.prototype.instructionConfig = Object.freeze(
 	       	3: {displayString: "left<p>", value: 3},
 	       	4: {displayString: "right<p>", value: 4},
 	       	5: {displayString: "go<p>", value: 5},
-	       	6: {displayString: "fire!<p>", value: 6},
+	       	6: {displayString: "honk!<p>", value: 6},
 	       	7: {displayString: "pause..<p>", value: 7},
 	       	8: {displayString: "", value: 8},
 			9: {displayString: "", value: 9}

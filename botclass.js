@@ -69,6 +69,8 @@ var Bot = function ( instructionMgr, mapManager )
 
   this.deathTime = 0;
 
+  this.respawn = false;
+
   this.instructionReady = 0;  // 1 if there is an instruction waiting for us
   this.isLoaded = 0;          // 1 if bot is loaded and ready
 
@@ -114,20 +116,20 @@ Bot.prototype.load = function( model, texture, jsonLoader, textureLoader, audioL
 
 Bot.prototype.loadModel = function( model, texture, jsonLoader, textureLoader, isCreatedCallback )
 {
-	var loadedTexture = textureLoader.load( texture );
+	  var loadedTexture = textureLoader.load( texture );
 
-	var material = new THREE.MeshLambertMaterial( { map: loadedTexture } );
+	  var material = new THREE.MeshLambertMaterial( { map: loadedTexture } );
 
-	var instance = this; 	// so we can access bot inside anon-function
+	  var instance = this; 	// so we can access bot inside anon-function
 
-	jsonLoader.load( model, function (geometry) {
+	  jsonLoader.load( model, function (geometry) {
 
-		geometry.scale(  100, 100, 100 );
+		  geometry.scale(  100, 100, 100 );
 
-	 	instance.mesh = new THREE.Mesh( geometry, material );
+	 	  instance.mesh = new THREE.Mesh( geometry, material );
 
-		instance.calculateStepSize();
-	} );
+		  instance.calculateStepSize();
+	  } );
 }
 
 Bot.prototype.loadAudio = function( audioListener )
@@ -303,7 +305,11 @@ Bot.prototype.updateState = function()
         break;
 
         case TState.DEAD:
-          // NOOP: Wait for call to reset to move use to TState.READY
+          // NOOP: Wait for call to reset to move us to TState.READY
+          if( this.respawn == true ) {
+            newState = TState.READY;
+            this.respawn = false;
+          }
         break;
 
         case TState.INITIAL:
@@ -317,11 +323,23 @@ Bot.prototype.updateState = function()
     // Change state if required
     if( this.state != newState )
     {
+      console.log("Bot state changing from " + this.state + " to " + newState);
       this.onExitState();
       this.state = newState;
       this.onEnterState();
     }
 }
+
+Bot.prototype.isDead = function()
+{
+  return this.state == TState.DEAD;
+}
+
+Bot.prototype.respawnBot = function()
+{
+  this.respawn = true;
+}
+
 
 /**
 * onEnterState()
@@ -333,7 +351,7 @@ Bot.prototype.onEnterState = function()
   switch(this.state)
   {
     case TState.READY:
-              this.scale = 1.0;
+        this.scale = 1.0;
     break;
 
     case TState.EXECUTING:
@@ -449,7 +467,22 @@ Bot.prototype.onExitState = function()
     case TState.DYING:
       this.deathTimer = 0;
     break;
+
+    case TState.DEAD:
+      this.resetBot();
+    break;
   }
+}
+
+Bot.prototype.resetBot = function()
+{
+      this.scale = 1.0;
+      this.mesh.rotation.set( 0, 0, 0, 'XZY' );
+      this.mesh.position.set (0,0,0);
+      this.mesh.scale.set( this.scale, this.scale, this.scale);
+      this.rotationOnRoad = 0;
+      this.moveOnRoad= 0;
+      this.rotationInFall = 0;
 }
 
 /**
@@ -572,7 +605,7 @@ Bot.prototype.doDeath = function( movementTime )
   if( this.scale < 0 ) {
     this.scale = 0;
   }
-  console.log( "shrinkage = " + this.scale);
+ // console.log( "shrinkage = " + this.scale);
 }
 
 /**
