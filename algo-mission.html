@@ -107,6 +107,7 @@
 			var g_State = TAppState.INITIAL;
 			var g_Retry = false;
 			var g_SelectMap = false;
+			var g_SelectedMap = -1;
 
 			// Main
 
@@ -115,7 +116,7 @@
 			g_State = TAppState.INITIAL;
 			initialise();
 
-			g_State = TAppState.READY;
+			//g_State = TAppState.SELECTMAP;
 			gameLoop(); 	// intial kickoff, subsequest calls via requestAnimationFrame()
 
 			console.log( "...algo-mission complete." );
@@ -156,11 +157,20 @@
 					break;
 
 					case TAppState.RETRY:
+
+						g_InstructionMgr.clearInstructions();
+						g_InstructionMgr.updateWindow();
+						
 						g_Bot.respawnBot();
+	
+						g_Camera.updateProjectionMatrix();
+						g_Camera.position.set(g_Bot.mesh.position.x, g_Bot.mesh.position.y + 60, g_Bot.mesh.position.z -40);
+						g_Camera.lookAt( g_Bot.mesh.position );
+						
 					break;
 
 					case TAppState.SELECTMAP:
-						// todo
+						// NOOP just wait for user to select a map
 					break;
 				}
 
@@ -182,7 +192,7 @@
 				{
 					case TAppState.INITIAL:
 						if( g_Bot.mesh != null && typeof(g_Bot.mesh) != "undefined" ) {
-							newState = TAppState.READY;
+							newState = TAppState.SELECTMAP;
 						}
 					break;
 
@@ -219,7 +229,11 @@
 					break;
 
 					case TAppState.SELECTMAP:
-						// todo
+						if( g_SelectedMap != -1 )
+						{
+							g_MapManager.loadMap(g_SelectedMap, g_Scene);
+							newState = TAppState.RETRY;
+						}
 					break;
 				}
 
@@ -249,7 +263,8 @@
 					case TAppState.RETRY:
 					break;
 					case TAppState.SELECTMAP:
-						// todo
+						g_SelectedMap = -1;
+						displayMapScreen();
 					break;
 				}
 			}
@@ -270,7 +285,7 @@
 					case TAppState.RETRY:
 					break;
 					case TAppState.SELECTMAP:
-						// todo
+						removeMapScreen();
 					break;
 				}
 			}
@@ -313,9 +328,7 @@
 						// adjust map and bot step measurements according to Bot length
 						g_MapManager.resize( g_Bot.getStepSize(), 0.1 );
 
-						g_MapManager.loadMap(0);
-
-						g_MapManager.addMapToScene( g_Scene );
+						//g_MapManager.loadMap(0, g_Scene);
 
 						clearInterval( myInterval );
 					}
@@ -482,8 +495,6 @@
 			{
 				g_ControlPanel = new ControlPanel( );
 				g_ControlPanel.addControlPanel( g_Camera.up, instructionMgr, textureLoader );
-
-				// TODO callback when ready?
 			}
 
 			function addEventListeners()
@@ -560,12 +571,12 @@
 				{
 					document.getElementById("loadingScreen").style.opacity = fade;
 
-					g_ControlPanel.setWindowOpacity( 1.0 - fade );
-				  g_InstructionMgr.setWindowOpacity( 1.0 - fade );
+				//	g_ControlPanel.setWindowOpacity( 1.0 - fade );
+				//  g_InstructionMgr.setWindowOpacity( 1.0 - fade );
 
-				  fade -= fadeStep;
-				  if( fade > 0 )
-				  {
+				  	fade -= fadeStep;
+				  	if( fade > 0 )
+				  	{
 						setTimeout( fadeDivs, fadePauseMs );
 					}
 					else
@@ -594,7 +605,7 @@
 					"color: White;" +
 					"overflow: auto;" +
 					"position: fixed;" +
-					"font: 24px arial,serif;" +
+					"font: 20px arial,serif;" +
 					"display:inline-block;" +
 					"}";
 
@@ -616,7 +627,7 @@
 							"top: 40%;" +
 							"font: 24px arial,serif;" +
 						"'" +
-						" onclick='selectMap()'>New road</button>";
+						" onclick='selectMap()'>Change Mission</button>";
 
 				document.body.appendChild(loadDiv);
 
@@ -657,18 +668,19 @@
 				var fadePauseMs = 100;
 				var fade = 1.0;
 
-				// setting html to '' also tells the progress bar to finish
-			//	document.getElementById("deathScreen").innerHTML = "";
-
 				(function fadeDivs()
 				{
 					document.getElementById("deathScreen").style.opacity = fade;
-					g_ControlPanel.setWindowOpacity( 1.0 - fade );
-				    g_InstructionMgr.setWindowOpacity( 1.0 - fade );
 
-				  fade -= fadeStep;
-				  if( fade > 0 )
-				  {
+					// we only want to unfade the control panel on a retry (not map select)
+					if( g_State != TAppState.SELECTMAP )
+					{
+						g_ControlPanel.setWindowOpacity( 1.0 - fade );
+				    	g_InstructionMgr.setWindowOpacity( 1.0 - fade );
+					}
+					fade -= fadeStep;
+					if( fade > 0 )
+					{
 						setTimeout( fadeDivs, fadePauseMs );
 					}
 					else
@@ -679,6 +691,144 @@
 				})();
 			}
 
+			function displayMapScreen()
+			{
+				var mapInfo = g_MapManager.getMapInfo( );
+				var mapText = 
+					"<table id='missionTable' width='100%' border='0' style='display:block;'>" +
+					"<thead style='display:block;position: sticky;top:0;; background-color: grey;display:block;'>" +
+						"<tr>" +
+						"<td width='100%'>" +
+							"<b>Hello bus driver. Please select a mission to try!<b>" +
+						"</td>" +
+						"</tr>" +
+					"</thead>" + 
+					"<tbody>";
+
+				for( var i=0; i < mapInfo.length; ++i )
+				{
+					var difficulty = "beginner";
+					switch( mapInfo[i].difficulty )
+					{
+						case 1:
+							difficulty = "beginner";
+						break;
+						case 2:
+							difficulty = "normal";
+						break;
+						case 3:
+							difficulty = "expert";
+						break;
+						default:
+							difficulty = "beginner";
+					}
+					mapText += "<tr>";
+					mapText += "<td id='" + mapInfo[i].mapid + "' width='30%'>" + "Mission: <b>" + mapInfo[i].name + "<b></td>";
+					mapText += "<td width='70%'><i>" + mapInfo[i].instructions + "</i> (" + difficulty + ")</td>";
+					mapText += "</tr>";
+				}
+				mapText += "</tbody>";
+
+				var css = 'table tr:hover{ background-color: #00ff00 }';
+				var style = document.createElement('style');
+				if (style.styleSheet) {
+					style.styleSheet.cssText = css;
+				} else {
+					style.appendChild(document.createTextNode(css));
+				}
+				document.getElementsByTagName('head')[0].appendChild(style);
+
+				var loadDiv = document.createElement('div');
+				loadDiv.id = "mapScreen";
+				loadDiv.style.cssText =
+					"opacity: 0;" +
+					"background-image: url('./images/retry.jpg');" +
+					"background-repeat: no-repeat;"+
+					"background-size: cover;" +
+					"width: 60%;" +
+					"height: 80%;" +
+					"top: 50%;" +
+					"left: 50%;" +
+					"transform: translate(-50%, -50%); " + 	// makes sure we're dead center
+					"text-align: left;" +
+					"color: White;" +
+					"overflow: auto;" +
+					"position: fixed;" +
+					"font: 12px arial,serif;" +
+					"display:inline-block;" +
+					"}";
+
+				loadDiv.innerHTML = mapText;
+
+				document.body.appendChild(loadDiv);
+
+				addMissionSelectRowHandlers();
+
+				var fadeStep = 0.05;
+				var fadePauseMs = 100;
+				var fade = 0.0;
+
+				(function fadeDivs()
+				{
+					document.getElementById("mapScreen").style.opacity = fade;
+/*
+					if( g_ControlPanel != null && g_InstructionMgr != null ) {
+						g_ControlPanel.setWindowOpacity( 1.0 - fade );
+						g_InstructionMgr.setWindowOpacity( 1.0 - fade );
+					}
+*/
+				  	fade += fadeStep;
+				  	if( fade < 1.0 )
+				  	{
+						setTimeout( fadeDivs, fadePauseMs );
+					}
+				})();
+			}
+
+			function addMissionSelectRowHandlers() {
+				var table = document.getElementById("missionTable");
+				var rows = table.getElementsByTagName("tr");
+				for (var i = 0; i < rows.length; i++) {
+					var currentRow = table.rows[i];
+					var createClickHandler = 
+						function(row) 
+						{
+							return function() { 
+													var cell = row.getElementsByTagName("td")[0];
+													g_SelectedMap = cell.id;
+													console.log("selected map:" + g_SelectedMap);
+											};
+						};
+
+					currentRow.onclick = createClickHandler(currentRow);
+				}
+			}
+
+			function removeMapScreen()
+			{
+				var fadeStep = 0.1;
+				var fadePauseMs = 100;
+				var fade = 1.0;
+
+				(function fadeDivs()
+				{
+					document.getElementById("mapScreen").style.opacity = fade;
+
+					g_ControlPanel.setWindowOpacity( 1.0 - fade );
+				    g_InstructionMgr.setWindowOpacity( 1.0 - fade );
+
+				  fade -= fadeStep;
+				  if( fade > 0 )
+				  {
+						setTimeout( fadeDivs, fadePauseMs );
+					}
+					else
+					{
+						document.getElementById("mapScreen").remove();
+						console.log("removing map screen");
+					}
+				})();
+			}
 
 			function setupCollisionDetection()
 			{
@@ -761,8 +911,8 @@
 				//
 				var instructionsUpdated = 0;
 				var instructionClicked =
-						g_ControlPanel.detectInstructionPress( event.clientX, event.clientY,
-																mainElement.clientHeight, g_Raycaster );
+				g_ControlPanel.detectInstructionPress( event.clientX, event.clientY,
+														mainElement.clientHeight, g_Raycaster );
 
 				if( instructionClicked )
 				{

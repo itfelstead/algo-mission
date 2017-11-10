@@ -337,6 +337,7 @@ Bot.prototype.isDead = function()
 
 Bot.prototype.respawnBot = function()
 {
+  this.resetBot();
   this.respawn = true;
 }
 

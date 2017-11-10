@@ -167,12 +167,12 @@ MapManager.prototype.INITIAL_MAP_ID = 0;
 
 /**
 * loadMap()
-* Loads the map definition related to the supplied map id. TODO
+* Loads the map definition related to the supplied map id.
 *
 * @param {int} mapId - (optional) mapId from the map summary file (see load()). Loads first map if unspecified.
 *
 */
-MapManager.prototype.loadMap = function( mapId )
+MapManager.prototype.loadMap = function( mapId, sceneToUpdate )
 {
 	if( typeof mapId == 'undefined' )
 	{
@@ -181,8 +181,39 @@ MapManager.prototype.loadMap = function( mapId )
 
 	var mapDef = this.jsonMaps[ mapId ]; 
 
+	this.removeMapFromScene( sceneToUpdate );
+
+	this.activeMapObjects = [];
+
 	this.createMapObjects( mapDef );
+
+	this.addMapToScene( sceneToUpdate );
 };
+
+/**
+* getMapInfo()
+* tbd
+*
+*/
+MapManager.prototype.getMapInfo = function( )
+{
+	var mapInfo = [];
+	for( var i = 0; i < this.jsonMaps.length; ++i )
+	{
+		var info = {};
+		var mapDetails = this.jsonMaps[i];
+		info.mapid = mapDetails.mapid;
+		info.name = mapDetails.name;
+		info.instructions = mapDetails.instructions;
+		info.difficulty = mapDetails.difficulty;
+
+		mapInfo.push( info );
+	}
+
+	return mapInfo;
+}
+
+
 
 /**
 * resize()
@@ -306,6 +337,24 @@ MapManager.prototype.addMapToScene = function ( sceneToUpdate )
 		sceneToUpdate.add( tileObject );
 	}
 };
+
+/**
+* removeMapFromScene()
+*
+* Removed the current map tiles in activeMapObjects from the scene
+*
+* @param {THREE.Scene} sceneToUpdate - scene to remove map objects from
+*
+*/
+MapManager.prototype.removeMapToScene = function ( sceneToUpdate )
+{
+	for( var i = 0; i < this.activeMapObjects.length; i++ )
+	{
+		var tileObject = this.activeMapObjects[i];
+		sceneToUpdate.remove( tileObject.name );
+	}
+};
+
 
 /**
 * removeMapFromScene()

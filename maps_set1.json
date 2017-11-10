@@ -38,8 +38,8 @@
         },
         {
             "mapid": 1,
-            "name": "The Right Turn",
-            "instructions": "Now lets try the steering wheel! Move forward 2 times, turn right once, then forward once to reach your goal",
+            "name": "The Left Turn",
+            "instructions": "Now lets try the steering wheel! Move forward 2 times, turn left once, then forward once to reach your goal",
             "difficulty": 1,
             "tileLayout": [
                 { "x": 0, "z":-1, "id": "tile_bottom_deadend" },
@@ -68,7 +68,7 @@
             "mapid": 3,
             "name": "Loopy!",
             "instructions": "OK, not dizzy enough? try this one...",
-            "difficulty": 1,
+            "difficulty": 3,
             "tileLayout": [
                 { "x": 0, "z":-1, "id": "tile_bottom_deadend" },
                 { "x": 1, "z":0, "id": "tile_left_deadend" },
