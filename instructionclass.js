@@ -124,7 +124,6 @@ InstructionManager.prototype.generateInstructionHtml = function( hint )
 	var numInstructions = this.instructions.length;
 	for( var i = 0; i < numInstructions; i++ )
 	{
-		console.log( "generateInstructionHtml(), i = ", i );
 		if( i == this.instructionPtr )
 		{
 			if( hint == 1 ) 	// bad move

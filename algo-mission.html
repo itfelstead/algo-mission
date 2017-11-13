@@ -967,22 +967,23 @@
 					{
 						var botSize = g_Bot.getStepSize();
 
-						var size = (botSize * 7) + 1;
+						var numSquares = 7;
+						var size = (botSize * numSquares) ;
 						var step = botSize;
 						var height = 1; 	// +ve = above road
 
 						var gridGeo = new THREE.Geometry();
 						var gridMaterial = new THREE.LineBasicMaterial( {color: 'white'});
 
-						// start from -1
-						var behindBus = 0 - step;
-						for( var horiz = behindBus; horiz <= size; horiz += step ) {
-							gridGeo.vertices.push( new THREE.Vector3( -size, height, horiz ) );
-							gridGeo.vertices.push( new THREE.Vector3( size, height, horiz ) );
+						var behindBus = 0 - (botSize/2);
+						for( var horiz = behindBus; horiz <= size; horiz += botSize ) {
+							gridGeo.vertices.push( new THREE.Vector3( -size+(botSize/2), height, horiz ) );
+							gridGeo.vertices.push( new THREE.Vector3( size+(botSize/2), height, horiz ) );
 						}
-						for( var vert = -size; vert <= size; vert += step ) {
-							gridGeo.vertices.push( new THREE.Vector3( vert, height, behindBus) );
-							gridGeo.vertices.push( new THREE.Vector3( vert, height, size ) );
+
+						for( var vert = -(size); vert < size ; vert += botSize ) {
+							gridGeo.vertices.push( new THREE.Vector3( vert+(botSize/2), height, behindBus ) );
+							gridGeo.vertices.push( new THREE.Vector3( vert+(botSize/2), height, size - (botSize/2)) );
 						}
 
 						g_GridHelperObject = new THREE.Line( gridGeo, gridMaterial, THREE.LinePieces );
