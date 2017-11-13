@@ -99,10 +99,17 @@ InstructionManager.prototype.setWindowOpacity = function( opacity )
 *
 *
 */
-InstructionManager.prototype.updateWindow = function()
+InstructionManager.prototype.updateWindow = function(scrollType, hint)
 {
-	document.getElementById("instructionTextBox").innerHTML = this.generateInstructionHtml();
-	this.tailScroll();
+	document.getElementById("instructionTextBox").innerHTML = this.generateInstructionHtml( hint );
+	if( scrollType == 1 )
+	{
+		this.followScroll();
+	}
+	else
+	{
+		this.tailScroll();
+	}
 }
 
 /**
@@ -110,16 +117,28 @@ InstructionManager.prototype.updateWindow = function()
 *
 *
 */
-InstructionManager.prototype.generateInstructionHtml = function()
+InstructionManager.prototype.generateInstructionHtml = function( hint )
 {
-	var html = "<b>Instructions<b><p>";
+	var html = "<b style='color:#ffeaf8;'>Instructions</b><p>";
 
 	var numInstructions = this.instructions.length;
 	for( var i = 0; i < numInstructions; i++ )
 	{
+		console.log( "generateInstructionHtml(), i = ", i );
 		if( i == this.instructionPtr )
 		{
-			 html += "<b>";
+			if( hint == 1 ) 	// bad move
+			{
+				html += "<b><i style='color:#cc0000;' >";
+			}
+			else if( hint == 2 ) // good move
+			{
+				html += "<b><i style='color:#ffc61a;' >";
+			}
+			else 		// neutral move
+			{
+				 html += "<b><i style='color:#a3ff5e;' >";
+			}
 		}
 
 		var operEnum = this.instructions[i];
@@ -128,7 +147,7 @@ InstructionManager.prototype.generateInstructionHtml = function()
 
 		if( i == this.instructionPtr )
 		{
-			 html += "</b>";
+			 html += " </i></b>";
 		}
 	}
 
@@ -143,6 +162,18 @@ InstructionManager.prototype.generateInstructionHtml = function()
 InstructionManager.prototype.tailScroll = function()
 {
 	document.getElementById("instructionTextBox").scrollTop = document.getElementById("instructionTextBox").scrollHeight;
+}
+
+/**
+* followScroll()
+*
+*
+*/
+InstructionManager.prototype.followScroll = function()
+{
+	var followTop = (document.getElementById("instructionTextBox").scrollHeight / this.instructions.length) * this.instructionPtr;
+
+	document.getElementById("instructionTextBox").scrollTop = followTop;
 }
 
 /**
@@ -203,6 +234,7 @@ InstructionManager.prototype.currentInstruction = function()
 InstructionManager.prototype.nextInstruction = function()
 {
 	this.instructionPtr++;
+	console.log("nextInstruction; ", this.instructionPtr);
 	if( this.instructionPtr >= this.instructions.length )
 	{
 		this.instructionPtr = this.instructionConfig.NO_INSTRUCTION;

@@ -335,6 +335,11 @@ Bot.prototype.isDead = function()
   return this.state == TState.DEAD;
 }
 
+Bot.prototype.isDying = function()
+{
+  return this.state == TState.DYING;
+}
+
 Bot.prototype.respawnBot = function()
 {
   this.resetBot();

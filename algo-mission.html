@@ -37,7 +37,7 @@
 		<script src="thirdparty/threejs/three.min.js"></script>
 		<script src="thirdparty/threejs/orbitcontrols.js"></script>
 
-		<script src="botclass.js"></script> 					// the bus
+		<script src="botclass.js"></script> 			// the bus
 		<script src="missionmapclass.js"></script> 		// the mission maps
 		<script src="instructionclass.js"></script> 	// instruction support and window
 		<script src="controlpanelclass.js"></script> 	// control panel support and window
@@ -208,6 +208,15 @@
 						}
 						else if( g_InstructionMgr.isRunning() == false ) {
 							newState = TAppState.READY;
+						}
+						else
+						{
+							var hint = 0; 			// 0: nothing special, 1: bad move, 2: good move
+							if( g_Bot.isDying() )
+							{
+								hint = 1;
+							}
+							g_InstructionMgr.updateWindow(1, hint); // highlight current instruction
 						}
 					break;
 
