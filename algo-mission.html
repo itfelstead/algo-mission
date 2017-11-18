@@ -771,12 +771,7 @@
 				(function fadeDivs()
 				{
 					document.getElementById("mapScreen").style.opacity = fade;
-/*
-					if( g_ControlPanel != null && g_InstructionMgr != null ) {
-						g_ControlPanel.setWindowOpacity( 1.0 - fade );
-						g_InstructionMgr.setWindowOpacity( 1.0 - fade );
-					}
-*/
+
 				  	fade += fadeStep;
 				  	if( fade < 1.0 )
 				  	{
@@ -794,12 +789,15 @@
 						function(row) 
 						{
 							return function() { 
-													var cell = row.getElementsByTagName("td")[0];
-													g_SelectedMap = cell.id;
-													console.log("selected map:" + g_SelectedMap);
-											};
+									var cell = row.getElementsByTagName("td")[0];
+									if( cell.id != "" )
+									{
+										g_SelectedMap = cell.id;
+									}
+									console.log("selected map:" + g_SelectedMap);
+							};
 						};
-
+					
 					currentRow.onclick = createClickHandler(currentRow);
 				}
 			}

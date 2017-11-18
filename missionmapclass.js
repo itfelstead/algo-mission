@@ -31,6 +31,7 @@ var MapManager = function ()
 	this.availableMaps = []; 	// loaded from an overview JSON file later
 
 	this.activeMapObjects = []; 	// updated when a map is loaded
+	this.idToMapObject = []; 		// key: map object name, value: role
 
   	this.loadedTextures = {};   // texture path/name to loaded texture;
 
@@ -184,6 +185,7 @@ MapManager.prototype.loadMap = function( mapId, sceneToUpdate )
 	this.removeMapFromScene( sceneToUpdate );
 
 	this.activeMapObjects = [];
+	this.idToMapObject = {};
 
 	this.createMapObjects( mapDef );
 
@@ -286,7 +288,13 @@ MapManager.prototype.createMapObjects = function( mapDef )
 
 		tileObject.name = "Tile_" + i;
 
+		if( mapTile.hasOwnProperty('role') )
+		{
+			tileObject.role = mapTile.role;
+		}
+
 		this.activeMapObjects.push( tileObject );
+		this.idToMapObject[ tileObject.name ] = tileObject;
 	}
 }
 
@@ -372,6 +380,38 @@ MapManager.prototype.removeMapFromScene = function ( sceneToUpdate )
 		sceneToUpdate.remove( tileObject );
 	}
 };
+
+
+MapManager.prototype.triggerTile = function ( tileId )
+{
+	console.log("Map, tile is triggered: ", tileId );
+	// tileId is the object.name
+
+	var tileObject = this.idToMapObject[ tileId ];
+
+	if( tileObject  && tileObject.hasOwnProperty("role") )
+	{
+		// act on role
+		var role = tileObject.role;
+		if( role == 'END' )
+		{
+			console.log("End tile triggered");
+		}
+		else if( role == 'BAD' )
+		{
+			console.log("bad tile triggered");
+		}
+
+	}
+
+	// check if tile is special
+
+	// sparkly disappear
+	// if( special == end )
+	//    fade out special object attached to this tile, if any
+
+}
+
 
 /**
 * update()

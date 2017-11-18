@@ -279,8 +279,15 @@ Bot.prototype.updateState = function()
 
           if( this.instructionTimer <= 0 )
           {
-              // instruction finished so pause
-              newState = TState.WAITING;
+            // instruction finished so pause
+            newState = TState.WAITING;
+
+            // are we on a special tile?
+            var tileId = this.getTileUnderBot();
+            if( tileId != -1 )
+            {
+              this.mapManager.triggerTile( tileId );
+            }
           }
 
           if( this.isOnMap() == 0 )
@@ -545,6 +552,37 @@ Bot.prototype.isOnMap = function()
 
   return isOnMap;
 }
+
+Bot.prototype.getTileUnderBot = function()
+{
+  var tileBeneath = "";
+  var mapTiles = this.mapManager.getTileObjects();
+  if( mapTiles.length > 0 )
+  {
+    var botPos = new THREE.Vector3;
+    botPos.y = g_Bot.mesh.position.y + 1; // bus is at same y pos as tiles so raise
+    botPos.x = g_Bot.mesh.position.x;
+    botPos.z = g_Bot.mesh.position.z;
+
+    var vec = new THREE.Vector3;
+    vec.x = 0;
+    vec.y = -1;
+    vec.z = 0;
+
+    this.raycaster.set( botPos, vec.normalize() );
+
+    var intersects = this.raycaster.intersectObjects(mapTiles); // store intersecting objects
+
+    if( intersects.length > 0 )
+    {
+      console.log( "getTileUnderBot() num tiles under bot is ", intersects.length );
+      tileBeneath = intersects[0].object.name;
+    }
+  }
+
+  return tileBeneath;
+}
+
 
 /**
 * calculateMovementTime()

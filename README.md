@@ -13,7 +13,8 @@ Screenshot:
 
 To run locally you can use node.js's http-server (otherwise see https://threejs.org/docs/#manual/introduction/How-to-run-thing-locally )
 e.g.
-	install node.js
+
+	install node.js and npm (https://nodejs.org/en/)
 
 	npm install http-server -g
 
