@@ -37,7 +37,7 @@
 		<script src="thirdparty/threejs/three.min.js"></script>
 		<script src="thirdparty/threejs/orbitcontrols.js"></script>
 
-		<script src="botclass.js"></script> 					// the bus
+		<script src="botclass.js"></script> 			// the bus
 		<script src="missionmapclass.js"></script> 		// the mission maps
 		<script src="instructionclass.js"></script> 	// instruction support and window
 		<script src="controlpanelclass.js"></script> 	// control panel support and window
@@ -208,6 +208,15 @@
 						}
 						else if( g_InstructionMgr.isRunning() == false ) {
 							newState = TAppState.READY;
+						}
+						else
+						{
+							var hint = 0; 			// 0: nothing special, 1: bad move, 2: good move
+							if( g_Bot.isDying() )
+							{
+								hint = 1;
+							}
+							g_InstructionMgr.updateWindow(1, hint); // highlight current instruction
 						}
 					break;
 
@@ -954,24 +963,31 @@
 				{
 					if( g_GridHelperObject == null )
 					{
+						var numSquares = 9; 		// Must be an odd number to centre the bus
+						
 						var botSize = g_Bot.getStepSize();
-
-						var size = (botSize * 7) + 1;
-						var step = botSize;
-						var height = 1; 	// +ve = above road
+						var size = (botSize * numSquares);
+						var offset = (botSize/2); 	// we want bus in center of square
+						var height = 1; 			// +ve = above road
 
 						var gridGeo = new THREE.Geometry();
 						var gridMaterial = new THREE.LineBasicMaterial( {color: 'white'});
 
-						// start from -1
-						var behindBus = 0 - step;
-						for( var horiz = behindBus; horiz <= size; horiz += step ) {
-							gridGeo.vertices.push( new THREE.Vector3( -size, height, horiz ) );
-							gridGeo.vertices.push( new THREE.Vector3( size, height, horiz ) );
+						var adjustedHorizWidth = size/2 ;  			// adjusted for centre being 0,0
+						for( var horizSquareNum = 0; horizSquareNum <= numSquares; ++horizSquareNum )
+						{
+							var depthPos = (botSize * horizSquareNum) - offset; 
+							gridGeo.vertices.push( new THREE.Vector3( -adjustedHorizWidth, height, depthPos ) );
+							gridGeo.vertices.push( new THREE.Vector3( adjustedHorizWidth, height, depthPos ) );	
 						}
-						for( var vert = -size; vert <= size; vert += step ) {
-							gridGeo.vertices.push( new THREE.Vector3( vert, height, behindBus) );
-							gridGeo.vertices.push( new THREE.Vector3( vert, height, size ) );
+
+						var adjustedHorizStart = 0 - (botSize/2); 	// start lines just behind bus (0,0)
+						for( var vertSquareNum = 0; vertSquareNum <= numSquares; ++vertSquareNum )
+						{
+							var horizPos = ((botSize * vertSquareNum) - adjustedHorizWidth);
+
+							gridGeo.vertices.push( new THREE.Vector3( horizPos, height, adjustedHorizStart ) );
+							gridGeo.vertices.push( new THREE.Vector3( horizPos, height, size - offset) );
 						}
 
 						g_GridHelperObject = new THREE.Line( gridGeo, gridMaterial, THREE.LinePieces );
