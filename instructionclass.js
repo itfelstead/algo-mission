@@ -11,16 +11,45 @@
  */
 var ALGO = ALGO || {};
 
+var TMapState = {
+	NONE: 0,
+	BAD: 1,
+	GOOD: 2
+  };
+
 /**
 * constructor
 * @class The InstructionManager class. Manages the instruction window in the game.
 */
-var InstructionManager = function ()
+var InstructionManager = function (mapManager)
 {
 	this.instructions = [];
 	this.html = "<b>Instructions:<b><p>";
 	this.instructionPtr = this.instructionConfig.NO_INSTRUCTION; 	// index into this.instructions
+
+	this.mapManager = mapManager;   		// for map tile events that impact the instruction list
+	mapManager.registerObserver( this );    // We want to know something of interest happens (e.g. moved tile)	
+
+	this.currentHint = TMapState.NONE;
 };
+
+InstructionManager.prototype.updateTriggered = function( role )
+{
+  console.log("InstructionManager got an event from the map, " + role);
+
+  // Make bot react to move to a new tile role (if supported)
+  if( role != "" )
+  {
+	if( role == "NO_TILE")
+	{
+		this.currentHint = TMapState.BAD;
+	}
+	else if( role == "END" )
+	{
+		this.currentHint = TMapState.GOOD;
+	}
+  }
+}
 
 /**
 * Supported Instructions
@@ -99,9 +128,9 @@ InstructionManager.prototype.setWindowOpacity = function( opacity )
 *
 *
 */
-InstructionManager.prototype.updateWindow = function(scrollType, hint)
+InstructionManager.prototype.updateWindow = function(scrollType)
 {
-	document.getElementById("instructionTextBox").innerHTML = this.generateInstructionHtml( hint );
+	document.getElementById("instructionTextBox").innerHTML = this.generateInstructionHtml();
 	if( scrollType == 1 )
 	{
 		this.followScroll();
@@ -117,7 +146,7 @@ InstructionManager.prototype.updateWindow = function(scrollType, hint)
 *
 *
 */
-InstructionManager.prototype.generateInstructionHtml = function( hint )
+InstructionManager.prototype.generateInstructionHtml = function( )
 {
 	var html = "<b style='color:#ffeaf8;'>Instructions</b><p>";
 
@@ -126,11 +155,11 @@ InstructionManager.prototype.generateInstructionHtml = function( hint )
 	{
 		if( i == this.instructionPtr )
 		{
-			if( hint == 1 ) 	// bad move
+			if( this.currentHint == TMapState.BAD ) 	// bad move
 			{
 				html += "<b><i style='color:#cc0000;' >";
 			}
-			else if( hint == 2 ) // good move
+			else if( this.currentHint == TMapState.GOOD ) // good move
 			{
 				html += "<b><i style='color:#ffc61a;' >";
 			}
@@ -184,6 +213,7 @@ InstructionManager.prototype.clearInstructions = function()
 {
 	this.instructionPtr = this.instructionConfig.NO_INSTRUCTION;
 	this.instructions = [];
+	this.currentHint = TMapState.NONE;
 }
 
 /**

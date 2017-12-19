@@ -33,6 +33,12 @@ var TDeathSpin = {
    FORWARDS: 4
 };
 
+var TBotMapState = {
+  NONE: 0,
+  BAD: 1,
+  GOOD: 2
+};
+
 /**
 * constructor
 * @class The bot class. Represents the main character in the game.
@@ -44,13 +50,15 @@ var Bot = function ( instructionMgr, mapManager )
 
   this.mapManager = mapManager;   // for map tile collision detection
 
+  mapManager.registerObserver( this );    // We want to know something of interest happens (e.g. moved tile)
+
   this.audioBusHorn = null;
   this.audioBusMove = null;
   this.audioBusFall = null;
   this.audioBusTurn = null;
   this.audioBusWait = null;
 
-  this.raycaster = new THREE.Raycaster();
+  //this.raycaster = new THREE.Raycaster();
 
 	this.modelFile = null;
 	this.textureFile = null;
@@ -74,9 +82,28 @@ var Bot = function ( instructionMgr, mapManager )
   this.instructionReady = 0;  // 1 if there is an instruction waiting for us
   this.isLoaded = 0;          // 1 if bot is loaded and ready
 
-
   this.state = TState.INITIAL;
+
+  this.botMapStatus = TBotMapState.NONE;
 };
+
+Bot.prototype.updateTriggered = function( role )
+{
+  console.log("Bot got an event from the map, " + role);
+
+  // Make bot react to move to a new tile role (if supported)
+  if( role != "" )
+  {
+    if( role == "NO_TILE")
+    {
+      this.botMapStatus = TBotMapState.BAD;
+    }
+    else if( role == "END")
+    {
+      this.botMapStatus = TBotMapState.GOOD;
+    }
+  }
+}
 
 /**
 * calculateStepSize()
@@ -247,6 +274,8 @@ Bot.prototype.actOnState = function(timeElapsed)
   }
 }
 
+
+
 /**
 * updateState()
 *
@@ -277,20 +306,16 @@ Bot.prototype.updateState = function()
 
         case TState.EXECUTING:
 
+
           if( this.instructionTimer <= 0 )
           {
             // instruction finished so pause
             newState = TState.WAITING;
-
-            // are we on a special tile?
-            var tileId = this.getTileUnderBot();
-            if( tileId != -1 )
-            {
-              this.mapManager.triggerTile( tileId );
-            }
           }
 
-          if( this.isOnMap() == 0 )
+          this.activateTileUnderBot();
+
+          if( this.botMapStatus == TBotMapState.BAD )
           {
             newState = TState.DYING
           }
@@ -496,6 +521,7 @@ Bot.prototype.resetBot = function()
       this.rotationOnRoad = 0;
       this.moveOnRoad= 0;
       this.rotationInFall = 0;
+      this.botMapStatus = TBotMapState.NONE;
 }
 
 /**
@@ -525,69 +551,21 @@ Bot.prototype.update = function( timeElapsed )
 }
 
 /**
+* activateTileUnderBot()
 *
-*
+* Alter the map to the presence of the bot.
+* This may trigger events from the map manager
+* according to the type of tile the bot enters.
 *
 */
-Bot.prototype.isOnMap = function()
+Bot.prototype.activateTileUnderBot = function()
 {
-  var isOnMap = 0;
-  var mapTiles = this.mapManager.getTileObjects();
-  if( mapTiles.length > 0 )
-  {
-    var botPos = new THREE.Vector3;
-    botPos.y = g_Bot.mesh.position.y + 1; // bus is at same y pos as tiles so raise
-    botPos.x = g_Bot.mesh.position.x;
-    botPos.z = g_Bot.mesh.position.z;
+  var x = g_Bot.mesh.position.x;
+  var y = g_Bot.mesh.position.y + 1; // bot is at same y pos as tiles so raise
+  var z = g_Bot.mesh.position.z;
 
-    var vec = new THREE.Vector3;
-    vec.x = 0;
-    vec.y = -1;
-    vec.z = 0;
-
-    this.raycaster.set( botPos, vec.normalize() );
-
-    var intersects = this.raycaster.intersectObjects(mapTiles); // store intersecting objects
-
-    if( intersects.length > 0 )
-    {
-      isOnMap = 1;
-    }
-  }
-
-  return isOnMap;
+  this.mapManager.activateTileUnderPos( x, y, z );
 }
-
-Bot.prototype.getTileUnderBot = function()
-{
-  var tileBeneath = "";
-  var mapTiles = this.mapManager.getTileObjects();
-  if( mapTiles.length > 0 )
-  {
-    var botPos = new THREE.Vector3;
-    botPos.y = g_Bot.mesh.position.y + 1; // bus is at same y pos as tiles so raise
-    botPos.x = g_Bot.mesh.position.x;
-    botPos.z = g_Bot.mesh.position.z;
-
-    var vec = new THREE.Vector3;
-    vec.x = 0;
-    vec.y = -1;
-    vec.z = 0;
-
-    this.raycaster.set( botPos, vec.normalize() );
-
-    var intersects = this.raycaster.intersectObjects(mapTiles); // store intersecting objects
-
-    if( intersects.length > 0 )
-    {
-      console.log( "getTileUnderBot() num tiles under bot is ", intersects.length );
-      tileBeneath = intersects[0].object.name;
-    }
-  }
-
-  return tileBeneath;
-}
-
 
 /**
 * calculateMovementTime()

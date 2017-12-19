@@ -44,6 +44,37 @@ var MapManager = function ()
 
 	// set to 1 when the JSON map/tile config has been loaded
 	this.mapLoaded = 0;
+
+	this.raycaster = new THREE.Raycaster();
+
+	this.currentActiveTile = "";
+
+	this.observers = [];
+}
+
+MapManager.prototype.registerObserver = function(observer)
+{
+	this.observers.push(observer);
+}
+
+MapManager.prototype.unregisterObserver = function(fn)
+{
+	this.observers = this.observers.filter(
+		function(existingObserver) {
+			if(existingObserver !== observer) {
+				return existingObserver;
+			}
+		}
+	);
+}
+
+MapManager.prototype.notifyObservers = function(tileRole)
+{
+	this.observers.forEach(
+		function(observer) {
+			observer.updateTriggered( tileRole );
+		}
+	);
 }
 
 /**
@@ -381,37 +412,77 @@ MapManager.prototype.removeMapFromScene = function ( sceneToUpdate )
 	}
 };
 
-
-MapManager.prototype.triggerTile = function ( tileId )
+// if tileBeneath == "" then off map, else will hold textual id of tile.
+//
+MapManager.prototype.getTileUnderPos = function( xPos, yPos, zPos )
 {
-	console.log("Map, tile is triggered: ", tileId );
-	// tileId is the object.name
-
-	var tileObject = this.idToMapObject[ tileId ];
-
-	if( tileObject  && tileObject.hasOwnProperty("role") )
+	var tileBeneath = "";
+	var mapTiles = this.getTileObjects();
+	if( mapTiles.length > 0 )
 	{
-		// act on role
-		var role = tileObject.role;
-		if( role == 'END' )
-		{
-			console.log("End tile triggered");
-		}
-		else if( role == 'BAD' )
-		{
-			console.log("bad tile triggered");
-		}
-
+	  var botPos = new THREE.Vector3;
+	  botPos.y = yPos;
+	  botPos.x = xPos;
+	  botPos.z = zPos;
+  
+	  var vec = new THREE.Vector3;
+	  vec.x = 0;
+	  vec.y = -1;
+	  vec.z = 0;
+  
+	  this.raycaster.set( botPos, vec.normalize() );
+  
+	  var intersects = this.raycaster.intersectObjects(mapTiles); // store intersecting objects
+  
+	  if( intersects.length > 0 )
+	  {
+		console.log( "getTileUnderBot() num tiles under bot is ", intersects.length );
+		tileBeneath = intersects[0].object.name;
+	  }
 	}
-
-	// check if tile is special
-
-	// sparkly disappear
-	// if( special == end )
-	//    fade out special object attached to this tile, if any
-
+  
+	return tileBeneath;
 }
 
+MapManager.prototype.activateTileUnderPos = function ( xPos, yPos, zPos )
+{
+	var tileId = this.getTileUnderPos( xPos, yPos, zPos );
+	this.activateTile( tileId );
+}
+
+MapManager.prototype.activateTile = function ( tileId )
+{
+	if( this.currentActiveTile != tileId )
+	{
+		var role = this.getTileRole( tileId );
+
+		// Any Map animation besed on entering a tile can go here
+		// TODO
+
+		this.notifyObservers( role );
+
+		this.currentActiveTile = tileId;
+	}
+}
+
+MapManager.prototype.getTileRole = function ( tileId )
+{
+	console.log("Map, tile is triggered: ", tileId );
+
+	var role = '';
+
+	var tileObject = this.idToMapObject[ tileId ];
+	if( typeof(tileObject) == "undefined" )
+	{
+		role = "NO_TILE";
+	}
+	else if( tileObject.hasOwnProperty("role") )
+	{
+		role = tileObject.role;
+	}
+
+	return role;
+}
 
 /**
 * update()

@@ -99,6 +99,7 @@
 				READY: 2,
 				WAITING: 3,
 				RUNNING: 4,
+				WIN: 5,
 				DEAD: 6,
 				RETRY: 7,
 				SELECTMAP: 8
@@ -109,6 +110,8 @@
 			var g_SelectMap = false;
 			var g_SelectedMap = -1;
 
+			var g_Win = 0;
+
 			// Main
 
 			console.log( "algo-mission v" + VERSION + " starting..." );
@@ -116,12 +119,26 @@
 			g_State = TAppState.INITIAL;
 			initialise();
 
+			// TODO: We'll implement a proper score manager at some point, For now, just listen for 'END'
+			g_MapManager.registerObserver( this );
+
+
 			//g_State = TAppState.SELECTMAP;
 			gameLoop(); 	// intial kickoff, subsequest calls via requestAnimationFrame()
 
 			console.log( "...algo-mission complete." );
 
 			// ---------------
+
+
+			function updateTriggered( role )
+			{
+				console.log("Window got an event from the map, " + role);
+				if( role == "END")
+				{
+					g_Win = 1;
+				}
+			}
 
 			function actOnState( ) 
 			{
@@ -151,6 +168,10 @@
 						g_Camera.lookAt( g_Bot.mesh.position );
 					break;
 
+					case TAppState.WIN:
+						// NOOP just wait for user to click a button
+					break;
+
 					case TAppState.DEAD:
 						// NOOP - we're just waiting for user to restart or choose map
 						g_MouseControls.enabled = false;
@@ -160,6 +181,7 @@
 
 						g_InstructionMgr.clearInstructions();
 						g_InstructionMgr.updateWindow();
+						g_Win = 0;
 						
 						g_Bot.respawnBot();
 	
@@ -207,16 +229,25 @@
 							newState = TAppState.DEAD;
 						}
 						else if( g_InstructionMgr.isRunning() == false ) {
-							newState = TAppState.READY;
+							if( g_Win == 1 )
+							{
+								newState = TAppState.WIN;
+							}
+							else
+							{
+								newState = TAppState.READY;
+							}
 						}
 						else
 						{
-							var hint = 0; 			// 0: nothing special, 1: bad move, 2: good move
-							if( g_Bot.isDying() )
-							{
-								hint = 1;
-							}
-							g_InstructionMgr.updateWindow(1, hint); // highlight current instruction
+							g_InstructionMgr.updateWindow(1); // highlight current instruction
+						}
+					break;
+
+					case TAppState.WIN:
+						if( g_SelectMap == true ) {
+							newState = TAppState.SELECTMAP;
+							g_SelectMap = false;
 						}
 					break;
 
@@ -261,10 +292,14 @@
 				switch( g_State )
 				{
 					case TAppState.INITIAL:
+						g_Win = 0;
 					break;
 					case TAppState.READY:
 					break;
 					case TAppState.RUNNING:
+					break;
+					case TAppState.WIN:
+						displayWinnerScreen();
 					break;
 					case TAppState.DEAD:
 						displayDeathScreen();
@@ -287,6 +322,9 @@
 					case TAppState.READY:
 					break;
 					case TAppState.RUNNING:
+					break;
+					case TAppState.WIN:
+						removeWinnerScreen();
 					break;
 					case TAppState.DEAD:
 						removeDeathScreen();
@@ -317,11 +355,11 @@
 
 				addMouseControls();
 
-				addInstructionManager();
+				addMapManager( g_TextureLoader );
+
+				addInstructionManager( g_MapManager );
 
 				addControlPanel( g_InstructionMgr, g_TextureLoader );
-
-				addMapManager( g_TextureLoader );
 
 				addAudio( g_Camera );
 
@@ -493,9 +531,9 @@
 				g_MapManager.load( textureLoader, function(){ g_MapLoaded = true; } );
 			}
 
-			function addInstructionManager( )
+			function addInstructionManager( mapManager )
 			{
-				g_InstructionMgr = new InstructionManager( );
+				g_InstructionMgr = new InstructionManager( mapManager );
 				g_InstructionMgr.addInstructionWindow();
 				g_InstructionMgr.updateWindow();
 			}
@@ -591,6 +629,85 @@
 					else
 					{
 						document.getElementById("loadingScreen").remove();
+					}
+				})();
+			}
+
+			function displayWinnerScreen()
+			{
+				var loadDiv = document.createElement('div');
+
+				loadDiv.id = "winScreen";
+				loadDiv.style.cssText =
+					"opacity: 0;" +
+					"background-image: url('./images/win.jpg');" +
+					"background-repeat: no-repeat;"+
+					"background-size: cover;" +
+					"width: 50%;" +
+					"height: 50%;" +
+					"top: 50%;" +
+					"left: 50%;" +
+					"transform: translate(-50%, -50%); " + 	// makes sure we're dead center
+					"text-align: center;" +
+					"color: White;" +
+					"overflow: auto;" +
+					"position: fixed;" +
+					"font: 20px arial,serif;" +
+					"display:inline-block;" +
+					"}";
+
+				loadDiv.innerHTML = "Nice one!... <p>" + 
+						"<button style='" +
+							"width: 25%;" +
+							"height: 100%;" +
+							"margin-left: 0%;" +
+							"position: relative;"+
+							"font: 24px arial,serif;" +
+						"'" +
+						" onclick='selectMap()'>Try another mission</button>"
+
+				document.body.appendChild(loadDiv);
+
+				var fadeStep = 0.07;
+				var fadePauseMs = 100;
+				var fade = 0.0;
+
+				(function fadeDivs()
+				{
+					document.getElementById("winScreen").style.opacity = fade;
+
+					if( g_ControlPanel != null && g_InstructionMgr != null ) {
+						g_ControlPanel.setWindowOpacity( 1.0 - fade );
+						g_InstructionMgr.setWindowOpacity( 1.0 - fade );
+					}
+
+				  	fade += fadeStep;
+				  	if( fade < 1.0 )
+				  	{
+						setTimeout( fadeDivs, fadePauseMs );
+					}
+				})();
+			}
+
+			function removeWinnerScreen()
+			{
+				var fadeStep = 0.1;
+				var fadePauseMs = 100;
+				var fade = 1.0;
+
+				(function fadeDivs()
+				{
+					document.getElementById("winScreen").style.opacity = fade;
+
+					fade -= fadeStep;
+					if( fade > 0 )
+					{
+						setTimeout( fadeDivs, fadePauseMs );
+					}
+					else
+					{
+						document.getElementById("winScreen").remove();
+						console.log("removing win screen");
 					}
 				})();
 			}
