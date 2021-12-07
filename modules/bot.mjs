@@ -6,6 +6,8 @@
 
 "use strict";
 
+import * as THREE from 'https://cdn.skypack.dev/pin/three@v0.135.0-pjGUcRG9Xt70OdXl97VF/mode=imports,min/optimized/three.js';
+
 import { InstructionManager } from "./instructionmanager.mjs";
 
 /**
@@ -60,9 +62,7 @@ class Bot {
     this.audioBusWait = null;
 
     //this.raycaster = new THREE.Raycaster();
-
-    this.modelFile = null;
-    this.textureFile = null;
+  
     this.mesh = null;
 
     this.modelLength = 0;
@@ -109,45 +109,43 @@ class Bot {
   */
   calculateStepSize() {
     var tileBorder = 4;
+
     var boundingBox = new THREE.Box3().setFromObject(this.mesh);
-    var boxSize = boundingBox.getSize();
+    const boxSize = new THREE.Vector3();
+    boundingBox.getSize( boxSize );
 
     this.modelLength = boxSize.z;
-
+    console.log("modellenght: " + this.modelLength );
     this.stepSize = this.modelLength + (tileBorder * 2);
+    console.log("stepsize: " + this.stepSize );
   }
 
   /**
   * load()
-  * Loads the model and texture using the supplied loaders.
+  * Loads the model using the supplied loaders.
   * Calls isCreatedCallback() once complete.
   *
-  * @param {string} model - file name of JSON model
-  * @param {string} texture - file name of model texture
-  * @param {THREE.JSONLoader} jsonLoader - JSON loader
-  * @param {THREE.TextureLoader} textureLoader - texture loader
+  * @param {string} model - file name of GLTF model
+  * @param {(THREE Sample)GLTFLoader} glTFLoader - GLTF loader
   * @param {function} isCreatedCallback - callback to call when complete
   */
-  load(model, texture, jsonLoader, textureLoader, audioListener, isCreatedCallback) {
-    this.loadModel(model, texture, jsonLoader, textureLoader, isCreatedCallback);
+  load(model, glTFLoader, audioListener, isCreatedCallback) {
+    this.loadModel(model, glTFLoader, isCreatedCallback);
 
     this.loadAudio(audioListener);
 
     this.waitForLoad(isCreatedCallback, this);
   }
 
-  loadModel(model, texture, jsonLoader, textureLoader, isCreatedCallback) {
-    var loadedTexture = textureLoader.load(texture);
-
-    var material = new THREE.MeshLambertMaterial({ map: loadedTexture });
-
+  loadModel(model, glTFLoader, isCreatedCallback) {
+ 
     var instance = this; 	// so we can access bot inside anon-function
+    glTFLoader.load(model, function (obj) {
 
-    jsonLoader.load(model, function (geometry) {
+      var object3d  = obj.scene.getObjectByName( "OSG_Scene" );
+      // Scale is OK as loaded, but to change; object3d.scale.set(100, 100, 100);
 
-      geometry.scale(100, 100, 100);
-
-      instance.mesh = new THREE.Mesh(geometry, material);
+      instance.mesh = object3d;
 
       instance.calculateStepSize();
     });
@@ -421,7 +419,11 @@ class Bot {
 
     this.audioBusFall.play();
 
-    var wayFacing = this.mesh.getWorldRotation();
+    var quaternion = new THREE.Quaternion()
+    this.mesh.getWorldQuaternion( quaternion )
+    let wayFacing = new THREE.Euler()
+    wayFacing.setFromQuaternion(quaternion)
+
     if (wayFacing.y < 0) {
       if (wayFacing.y >= -2 && wayFacing.y <= -1) {
         this.deathSpin = Bot.TDeathSpin.RIGHT;
