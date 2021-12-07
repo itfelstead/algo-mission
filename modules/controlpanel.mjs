@@ -11,6 +11,7 @@
  */
 var ALGO = ALGO || {};
 
+import * as THREE from 'https://cdn.skypack.dev/pin/three@v0.135.0-pjGUcRG9Xt70OdXl97VF/mode=imports,min/optimized/three.js';
 
 import { InstructionManager } from './instructionmanager.mjs';
 

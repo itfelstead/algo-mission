@@ -6,6 +6,10 @@
 
 "use strict";
 
+import * as THREE from 'https://cdn.skypack.dev/pin/three@v0.135.0-pjGUcRG9Xt70OdXl97VF/mode=imports,min/optimized/three.js';
+import { GLTFLoader } from 'https://cdn.skypack.dev/three@0.135.0/examples/jsm/loaders/GLTFLoader.js';
+import { OrbitControls } from 'https://cdn.skypack.dev/three@0.135.0/examples/jsm/controls/OrbitControls.js';
+
 import { Bot } from './modules/bot.mjs';
 import { MapManager } from './modules/mapmanager.mjs';
 import { InstructionManager } from './modules/instructionmanager.mjs';
@@ -15,7 +19,7 @@ import { ControlPanel } from './modules/controlpanel.mjs';
 var ALGO = ALGO || {};
 
 class AlgoMission {
-
+ 
     static VERSION = 0.2;
 
     static SKY_TEXTURE = "textures/sky_twilight.jpg";   // Texture taken from Optikz 2004 post on blenderartists,org
@@ -70,7 +74,7 @@ class AlgoMission {
 
         this.m_TextureLoader = null;
 
-        this.m_JSONLoader = null;
+        this.m_GLTFLoader = null;
 
         // game loop support
         this.m_Clock = null;
@@ -370,7 +374,7 @@ class AlgoMission {
 
         this.m_TextureLoader = new THREE.TextureLoader();
 
-        this.m_JSONLoader = new THREE.JSONLoader();
+        this.m_GLTFLoader = new GLTFLoader();
 
         this.m_Scene = new THREE.Scene();
     }
@@ -384,7 +388,7 @@ class AlgoMission {
     }
 
     addMouseControls() {
-        this.m_MouseControls = new THREE.OrbitControls(this.m_Camera, this.m_Element);
+        this.m_MouseControls = new OrbitControls(this.m_Camera, this.m_Element);
 
         // Rotate about the center.
         this.m_MouseControls.target.set(0, 0, 0);
@@ -452,10 +456,8 @@ class AlgoMission {
     // calls botCb() when bot is ready
     addBot(instructionMgr, mapManager, botCb) {
         this.m_Bot = new Bot(instructionMgr, mapManager);
-        this.m_Bot.load("models/ToonBus_VijayKumar.json",
-            "textures/Toon_Bus_Texture.jpg",
-            this.m_JSONLoader,
-            this.m_TextureLoader,
+        this.m_Bot.load("models/ToonBus_VijayKumar/scene.gltf",
+            this.m_GLTFLoader,
             this.m_AudioListener,
             botCb);
     }
@@ -983,24 +985,25 @@ class AlgoMission {
                 var offset = (botSize / 2); 	// we want bus in center of square
                 var height = 1; 			// +ve = above road
 
-                var gridGeo = new THREE.Geometry();
+                const points = [];
                 var gridMaterial = new THREE.LineBasicMaterial({ color: 'white' });
 
                 var adjustedHorizWidth = size / 2;  			// adjusted for centre being 0,0
                 for (var horizSquareNum = 0; horizSquareNum <= numSquares; ++horizSquareNum) {
                     var depthPos = (botSize * horizSquareNum) - offset;
-                    gridGeo.vertices.push(new THREE.Vector3(-adjustedHorizWidth, height, depthPos));
-                    gridGeo.vertices.push(new THREE.Vector3(adjustedHorizWidth, height, depthPos));
+                    points.push(new THREE.Vector3(-adjustedHorizWidth, height, depthPos));
+                    points.push(new THREE.Vector3(adjustedHorizWidth, height, depthPos));
                 }
 
                 var adjustedHorizStart = 0 - (botSize / 2); 	// start lines just behind bus (0,0)
                 for (var vertSquareNum = 0; vertSquareNum <= numSquares; ++vertSquareNum) {
                     var horizPos = ((botSize * vertSquareNum) - adjustedHorizWidth);
 
-                    gridGeo.vertices.push(new THREE.Vector3(horizPos, height, adjustedHorizStart));
-                    gridGeo.vertices.push(new THREE.Vector3(horizPos, height, size - offset));
+                    points.push(new THREE.Vector3(horizPos, height, adjustedHorizStart));
+                    points.push(new THREE.Vector3(horizPos, height, size - offset));
                 }
 
+                var gridGeo = new THREE.BufferGeometry().setFromPoints( points );
                 this.m_GridHelperObject = new THREE.LineSegments(gridGeo, gridMaterial);
             }
             this.m_GridHelperObject.name = "GridHelper";
