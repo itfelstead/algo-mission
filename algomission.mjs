@@ -89,7 +89,13 @@ class AlgoMission {
         // audio support
         this.m_AudioListener = null;
         this.m_AmbientButtonClickSound = null;
+        this.m_WinnerSound = null;
         this.m_AudioLoaded = null;
+        this.m_WinnerAudioLoaded = null;
+
+        // Winner
+        this.m_Trophy = null;
+        this.m_TrophyLoaded = false;
     }
 
     runGame() {
@@ -349,6 +355,7 @@ class AlgoMission {
             if (self.m_BotLoaded == true &&
                 self.m_SkyLoaded == true &&
                 self.m_MapLoaded == true &&
+                self.m_WinnerAudioLoaded == true &&
                 self.m_AudioLoaded == true) {
                 clearInterval(waitForLoad);
 
@@ -451,6 +458,18 @@ class AlgoMission {
                 self.m_AudioLoaded = true;
             }
         );
+
+        this.m_WinnerAudioLoaded = false;
+        this.m_WinnerSound = new THREE.Audio(this.m_AudioListener);
+        this.m_Scene.add(this.m_WinnerSound);
+        loader.load('audio/462362__breviceps__small-applause.wav',
+            function (winnerAudioBuffer) {
+                //on load
+                self.m_WinnerSound.setBuffer(winnerAudioBuffer);
+                self.m_WinnerAudioLoaded = true;
+            }
+        );
+
     }
 
     // calls botCb() when bot is ready
@@ -563,7 +582,118 @@ class AlgoMission {
         })();
     }
 
+    loadWinnerModels( glTFLoader ) {
+        console.log("loadWinnerModels called");
+
+        if( this.m_TrophyLoaded == false ) {
+            //this.loadModel( "./models/ToonBus_VijayKumar/scene.gltf", glTFLoader, this.trophyCreatedCb.bind(this) );
+            this.loadModel( "./models/Trophy_SyntyStudios/scene.gltf", glTFLoader, this.trophyCreatedCb.bind(this) );
+        }
+        
+        // this.loadModel( ??? , glTFLoader, this.???CreatedCb.bind(this) );
+
+        console.log("loadWinnerModels ending");
+    }
+
+    loadModel(model, glTFLoader, isCreatedCallback) {
+ 
+        var instance = this; 	// so we can access bot inside anon-function
+        glTFLoader.load( model, 
+
+            // Loaded    
+            function (gltf) {
+                isCreatedCallback(gltf);
+            },
+            // Progress
+            function (xhr ) {
+                console.log( model + " " + ( xhr.loaded / xhr.total * 100 ) + '% loaded' );
+            },
+            // Error
+            function( error ) {
+                console.log( 'Failed to load model ' + model );
+            }
+        );
+    }  
+
+    waitForWinnerLoad(isCreatedCallback, context) {
+        console.log("waitForWinnerLoad called");
+        var waitForAll = setInterval(function () {
+          if (context.m_TrophyLoaded == true // &&
+           // context.m_SelectButton != null
+            ) {
+            clearInterval(waitForAll);
+            isCreatedCallback();
+          }
+        }, 100);
+        console.log("waitForWinnerLoad ending");
+    }
+
+    trophyCreatedCb( obj ) {
+        console.log("trophyCreatedCb called");
+
+        var threeGroup = obj.scene;
+        var object3d  = threeGroup.getObjectByName( "OSG_Scene" );
+       // object3d.scale.set(1, 10, 10);
+        //object3d.position.set( this.m_Bot.mesh.position.x, this.m_Bot.mesh.position.y, this.m_Bot.mesh.position.z);
+
+       // need to reduce scale and move in from of camera, not at bot pos!
+       // then need to make it slowly rotate
+
+        this.m_Trophy = object3d;
+        this.m_TrophyLoaded = true;
+    }
+
+    runWinnerScreen( ) {
+        console.log("runWinnerScreen called");
+
+        var instance = this;
+
+        this.m_WinnerSound.play();
+
+        let startZ = 1;
+        this.m_Trophy.position.set( 0, -1, startZ );     // note; start behind camera (Z) for later zoom
+        this.m_Camera.add(this.m_Trophy);
+
+        let stopWinnerAnim = false;
+        let animDelayMs = 10;
+        let finalZ = -5;
+        let zoomStep = 0.1;
+        let buttonRevealDelayMs = 3000;
+        (function animateTrophy() {
+            instance.m_Trophy.rotation.y = instance.m_Trophy.rotation.y - stepSize;
+            if( instance.m_Trophy.position.z > finalZ  ) {
+                instance.m_Trophy.position.z = instance.m_Trophy.position.z - zoomStep;
+            }
+            
+            if( buttonRevealDelayMs > 0 ) {
+                buttonRevealDelayMs -= animDelayMs;
+                if( buttonRevealDelayMs <= 0 ) {
+                    // Time to show the options
+
+                }
+            }
+
+            if (stopWinnerAnim==false) {
+                setTimeout(animateTrophy, animDelayMs);
+            }
+        })();
+
+    }
+
     displayWinnerScreen() {
+        this.loadWinnerModels( this.m_GLTFLoader );
+  
+        this.waitForWinnerLoad( this.runWinnerScreen.bind(this), this );
+
+
+
+        
+        ///this.m_Scene.add(this.m_???);
+
+        // fade in rotating trophy
+        // after 3 secs, display select map button
+
+/*
         var loadDiv = document.createElement('div');
 
         loadDiv.id = "winScreen";
@@ -619,9 +749,13 @@ class AlgoMission {
                 setTimeout(fadeDivs, fadePauseMs);
             }
         })();
+        */
     }
 
     removeWinnerScreen() {
+
+        this.m_Scene.remove(this.m_Trophy);
+
         var fadeStep = 0.1;
         var fadePauseMs = 100;
         var fade = 1.0;
