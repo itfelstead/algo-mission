@@ -582,24 +582,21 @@ class AlgoMission {
         })();
     }
 
-    loadWinnerModels( glTFLoader ) {
-        console.log("loadWinnerModels called");
+    displayWinnerScreen() {
+        this.loadWinnerModels( this.m_GLTFLoader );
+        this.waitForWinnerLoad( this.runWinnerScreen.bind(this), this );
+    }
 
+    loadWinnerModels( glTFLoader ) {
         if( this.m_TrophyLoaded == false ) {
-            //this.loadModel( "./models/ToonBus_VijayKumar/scene.gltf", glTFLoader, this.trophyCreatedCb.bind(this) );
             this.loadModel( "./models/Trophy_SyntyStudios/scene.gltf", glTFLoader, this.trophyCreatedCb.bind(this) );
         }
-        
-        // this.loadModel( ??? , glTFLoader, this.???CreatedCb.bind(this) );
-
         console.log("loadWinnerModels ending");
     }
 
     loadModel(model, glTFLoader, isCreatedCallback) {
- 
         var instance = this; 	// so we can access bot inside anon-function
         glTFLoader.load( model, 
-
             // Loaded    
             function (gltf) {
                 isCreatedCallback(gltf);
@@ -613,34 +610,24 @@ class AlgoMission {
                 console.log( 'Failed to load model ' + model );
             }
         );
-    }  
+    }
+
+    trophyCreatedCb( obj ) {
+        var threeGroup = obj.scene;
+        var object3d  = threeGroup.getObjectByName( "OSG_Scene" );
+        this.m_Trophy = object3d;
+        this.m_TrophyLoaded = true;
+    }
 
     waitForWinnerLoad(isCreatedCallback, context) {
-        console.log("waitForWinnerLoad called");
+
         var waitForAll = setInterval(function () {
-          if (context.m_TrophyLoaded == true // &&
-           // context.m_SelectButton != null
-            ) {
+          if (context.m_TrophyLoaded == true ) {
             clearInterval(waitForAll);
             isCreatedCallback();
           }
         }, 100);
         console.log("waitForWinnerLoad ending");
-    }
-
-    trophyCreatedCb( obj ) {
-        console.log("trophyCreatedCb called");
-
-        var threeGroup = obj.scene;
-        var object3d  = threeGroup.getObjectByName( "OSG_Scene" );
-       // object3d.scale.set(1, 10, 10);
-        //object3d.position.set( this.m_Bot.mesh.position.x, this.m_Bot.mesh.position.y, this.m_Bot.mesh.position.z);
-
-       // need to reduce scale and move in from of camera, not at bot pos!
-       // then need to make it slowly rotate
-
-        this.m_Trophy = object3d;
-        this.m_TrophyLoaded = true;
     }
 
     runWinnerScreen( ) {
@@ -654,13 +641,23 @@ class AlgoMission {
         this.m_Trophy.position.set( 0, -1, startZ );     // note; start behind camera (Z) for later zoom
         this.m_Camera.add(this.m_Trophy);
 
+        let messageMesh = this.messageToMesh("Well done!", 1.25, 0x000000, undefined);
+        messageMesh.position.set( 0, -4, -10 );
+        messageMesh.name = "wellDoneMsg";
+        this.m_Camera.add(messageMesh);
+
+        let newMissionMesh = this.messageToMesh("(click mouse for a new mission)", 1, 0x000000, undefined);
+        newMissionMesh.position.set( 0, -6, -10 );
+        newMissionMesh.name = "newMissionMsg";
+        
         let stopWinnerAnim = false;
         let animDelayMs = 10;
         let finalZ = -5;
         let zoomStep = 0.1;
-        let buttonRevealDelayMs = 3000;
+        let rotateStep = 0.01;
+        let buttonRevealDelayMs = 4000;
         (function animateTrophy() {
-            instance.m_Trophy.rotation.y = instance.m_Trophy.rotation.y - stepSize;
+            instance.m_Trophy.rotation.y = instance.m_Trophy.rotation.y - rotateStep;
             if( instance.m_Trophy.position.z > finalZ  ) {
                 instance.m_Trophy.position.z = instance.m_Trophy.position.z - zoomStep;
             }
@@ -669,7 +666,10 @@ class AlgoMission {
                 buttonRevealDelayMs -= animDelayMs;
                 if( buttonRevealDelayMs <= 0 ) {
                     // Time to show the options
+                    instance.m_Camera.add(newMissionMesh);
 
+                    // can remove later via;
+                    // instance.m_Camera.remove( instance.m_Camera.getObjectByName("newMissionMsg") );
                 }
             }
 
@@ -680,98 +680,52 @@ class AlgoMission {
 
     }
 
-    displayWinnerScreen() {
-        this.loadWinnerModels( this.m_GLTFLoader );
-  
-        this.waitForWinnerLoad( this.runWinnerScreen.bind(this), this );
+    messageToMesh( msg, msgHeight, fgColour, optionalBgColour ) {
+        let msgCanvas = document.createElement("canvas");
+        let context = msgCanvas.getContext("2d");
+        context.font = "40px sans-serif";
+        let border = 0.25;
 
+        let worldMultiplier = msgHeight/40;     // i.e. font size
+        let msgWidth = (context.measureText(msg).width * worldMultiplier) + border;
+        let totalWidth = Math.ceil( msgWidth/ worldMultiplier);
+        let totalHeight = Math.ceil( (msgHeight+border) / worldMultiplier);
+        msgCanvas.width = totalWidth;
+        msgCanvas.height = totalHeight;
 
+        if (optionalBgColour != undefined) {
+            context.fillStyle = "#" + optionalBgColour.toString(16).padStart(6, '0');
+            context.fillRect( 0,0, totalWidth,totalHeight);
+        }
 
+        context.textAlign = "center";
+        context.textBaseline = "middle"; 
+        context.fillStyle = "#" + fgColour.toString(16).padStart(6, '0');
+        context.font = "40px sans-serif"; 
+        context.fillText(msg, totalWidth/2, totalHeight/2);
         
-        ///this.m_Scene.add(this.m_???);
+        let texture = new THREE.Texture(msgCanvas);
+        texture.minFilter = THREE.LinearFilter;
+        texture.needsUpdate = true;
 
-        // fade in rotating trophy
-        // after 3 secs, display select map button
+        let planeGeo = new THREE.PlaneGeometry(msgWidth, (msgHeight+border) );
+        let material = new THREE.MeshBasicMaterial( { side:THREE.DoubleSide, map:texture, transparent:true, opacity:1.0 } );
+        let mesh = new THREE.Mesh(planeGeo, material);
 
-/*
-        var loadDiv = document.createElement('div');
-
-        loadDiv.id = "winScreen";
-        loadDiv.style.cssText =
-            "opacity: 0;" +
-            "background-image: url('./images/win.jpg');" +
-            "background-repeat: no-repeat;" +
-            "background-size: cover;" +
-            "width: 50%;" +
-            "height: 50%;" +
-            "top: 50%;" +
-            "left: 50%;" +
-            "transform: translate(-50%, -50%); " + 	// makes sure we're dead center
-            "text-align: center;" +
-            "color: White;" +
-            "overflow: auto;" +
-            "position: fixed;" +
-            "font: 20px arial,serif;" +
-            "display:inline-block;" +
-            "}";
-
-        loadDiv.innerHTML = "Nice one!... <p>";
-
-        var selectButtonElement = document.createElement("button");
-        selectButtonElement.onclick = this.selectMap.bind(this);
-        selectButtonElement.id = "selectButton";
-        selectButtonElement.textContent = "Try another mission";
-        selectButtonElement.style.cssText =
-            "width: 30%;" +
-            "height: 50%;" +
-            "margin-left: 0%;" +
-            "position: relative;" +
-            "font: 24px arial,serif;";
-        loadDiv.appendChild(selectButtonElement);
-
-        document.body.appendChild(loadDiv);
-
-        var fadeStep = 0.07;
-        var fadePauseMs = 100;
-        var fade = 0.0;
-        var self = this;
-
-        (function fadeDivs() {
-            document.getElementById("winScreen").style.opacity = fade;
-
-            if (self.m_ControlPanel != null && self.m_InstructionMgr != null) {
-                self.m_ControlPanel.setWindowOpacity(1.0 - fade);
-                self.m_InstructionMgr.setWindowOpacity(1.0 - fade);
-            }
-
-            fade += fadeStep;
-            if (fade < 1.0) {
-                setTimeout(fadeDivs, fadePauseMs);
-            }
-        })();
-        */
+        return mesh;
     }
 
     removeWinnerScreen() {
 
-        this.m_Scene.remove(this.m_Trophy);
-
-        var fadeStep = 0.1;
-        var fadePauseMs = 100;
-        var fade = 1.0;
-
-        (function fadeDivs() {
-            document.getElementById("winScreen").style.opacity = fade;
-
-            fade -= fadeStep;
-            if (fade > 0) {
-                setTimeout(fadeDivs, fadePauseMs);
-            }
-            else {
-                document.getElementById("winScreen").remove();
-                console.log("removing win screen");
-            }
-        })();
+        this.m_Camera.remove(this.m_Trophy);
+        let msg = this.m_Camera.getObjectByName("newMissionMsg");
+        if( msg ) {
+            this.m_Camera.remove( msg );
+        }
+        msg = this.m_Camera.getObjectByName("wellDoneMsg");
+        if( msg ) {
+            this.m_Camera.remove( msg );
+        }
     }
 
     displayDeathScreen() {
@@ -1069,6 +1023,13 @@ class AlgoMission {
 
     onDocumentMouseDown(event) {
         event.preventDefault();
+
+        // If we're on the winner screen, then a click just means
+        // select next map - don't detect any other button presses
+        if( this.m_State == AlgoMission.TAppState.WIN ) {
+            this.m_SelectMap = true;
+            return;
+        }
 
         var mainElement = document.getElementById("AlgoMission");
         var mainWindowHeight = mainElement.clientHeight;
