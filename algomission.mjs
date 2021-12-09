@@ -641,6 +641,12 @@ class AlgoMission {
         this.m_Trophy.position.set( 0, -1, startZ );     // note; start behind camera (Z) for later zoom
         this.m_Camera.add(this.m_Trophy);
 
+        let trophySpotlight = new THREE.SpotLight( 0xffffff );
+        trophySpotlight.position.set(0,0,1);
+        trophySpotlight.target = this.m_Trophy;
+        trophySpotlight.name = "trophySpotlight";
+        this.m_Camera.add(trophySpotlight);
+        
         let messageMesh = this.messageToMesh("Well done!", 1.25, 0x000000, undefined);
         messageMesh.position.set( 0, -4, -10 );
         messageMesh.name = "wellDoneMsg";
@@ -650,34 +656,40 @@ class AlgoMission {
         newMissionMesh.position.set( 0, -6, -10 );
         newMissionMesh.name = "newMissionMsg";
         
-        let stopWinnerAnim = false;
+        
         let animDelayMs = 10;
+
         let finalZ = -5;
         let zoomStep = 0.1;
-        let rotateStep = 0.01;
-        let buttonRevealDelayMs = 4000;
-        (function animateTrophy() {
-            instance.m_Trophy.rotation.y = instance.m_Trophy.rotation.y - rotateStep;
+        (function animateTrophyZoom() {
             if( instance.m_Trophy.position.z > finalZ  ) {
                 instance.m_Trophy.position.z = instance.m_Trophy.position.z - zoomStep;
+                setTimeout(animateTrophyZoom, animDelayMs);
             }
-            
+        })();
+
+        let buttonRevealDelayMs = 4000;
+        (function animateTrophyClickMsg() {
             if( buttonRevealDelayMs > 0 ) {
                 buttonRevealDelayMs -= animDelayMs;
                 if( buttonRevealDelayMs <= 0 ) {
                     // Time to show the options
                     instance.m_Camera.add(newMissionMesh);
-
-                    // can remove later via;
-                    // instance.m_Camera.remove( instance.m_Camera.getObjectByName("newMissionMsg") );
                 }
-            }
-
-            if (stopWinnerAnim==false) {
-                setTimeout(animateTrophy, animDelayMs);
+                else {
+                    setTimeout(animateTrophyClickMsg, animDelayMs);
+                }
             }
         })();
 
+        let stopWinnerAnim = false;
+        let rotateStep = 0.01;
+        (function animateTrophySpin() {
+            instance.m_Trophy.rotation.y = instance.m_Trophy.rotation.y - rotateStep;
+            if (stopWinnerAnim==false) {
+                setTimeout(animateTrophySpin, animDelayMs);
+            }
+        })();
     }
 
     messageToMesh( msg, msgHeight, fgColour, optionalBgColour ) {
@@ -717,15 +729,34 @@ class AlgoMission {
 
     removeWinnerScreen() {
 
-        this.m_Camera.remove(this.m_Trophy);
         let msg = this.m_Camera.getObjectByName("newMissionMsg");
         if( msg ) {
             this.m_Camera.remove( msg );
         }
+
         msg = this.m_Camera.getObjectByName("wellDoneMsg");
         if( msg ) {
             this.m_Camera.remove( msg );
         }
+
+        let finalZ = 1;
+        let zoomStep = 0.2;
+        let animDelayMs = 10;
+        var instance = this;
+        (function animateTrophy() {
+            if( instance.m_Trophy.position.z < finalZ  ) {
+                instance.m_Trophy.position.z = instance.m_Trophy.position.z + zoomStep;
+                setTimeout(animateTrophy, animDelayMs);
+            }
+            else {
+                instance.m_Camera.remove(instance.m_Trophy);
+
+                let trophySpotlight = instance.m_Camera.getObjectByName("trophySpotlight");
+                if( trophySpotlight ) {
+                    instance.m_Camera.remove(trophySpotlight);
+                }
+            }
+        })();
     }
 
     displayDeathScreen() {
