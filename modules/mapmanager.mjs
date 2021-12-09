@@ -10,6 +10,9 @@
 
 import * as THREE from 'https://cdn.skypack.dev/pin/three@v0.135.0-pjGUcRG9Xt70OdXl97VF/mode=imports,min/optimized/three.js';
 
+import { MapTile } from "./maptile.mjs";
+import { TileFlair } from "./tileflair.mjs";
+import { GLTFLoader } from 'https://cdn.skypack.dev/three@0.135.0/examples/jsm/loaders/GLTFLoader.js';
 
 /**
  * @namespace The algo-mission namespace
@@ -46,8 +49,9 @@ class MapManager
 	
 		this.availableMaps = []; 	// loaded from an overview JSON file later
 	
-		this.activeMapObjects = []; 	// updated when a map is loaded
-		this.idToMapObject = []; 		// key: map object name, value: role
+		this.activeTileObjects = []; 	// updated when a map is loaded
+		this.activeTileMeshes = []; 	// the THREE.Mesh's used by the tiles
+		this.idToMapObject = []; 		// key: map object name, value: MapTile object
 	
 		this.loadedTextures = {};   // texture path/name to loaded texture;
 	
@@ -58,8 +62,10 @@ class MapManager
 		//	Positions values will be translated to world coordinates
 		this.jsonMaps = [];
 	
-		// set to 1 when the JSON map/tile config has been loaded
-		this.mapLoaded = 0;
+		// set to true when the JSON map/tile config has been loaded
+		this.mapLoaded = false;
+		this.flairLoaded = false;
+		this.flairBusStopModel = null;
 	
 		this.raycaster = new THREE.Raycaster();
 	
@@ -97,30 +103,79 @@ class MapManager
 	*  load
 	*
 	* @param {THREE.TextureLoader} textureLoader - for loading textures
+	* @param {GLTFLoader} glTFLoader - for loading GLTF models
 	* @param {function} callbackFn - called when map manger is ready (i.e. textures loaded)
 	*/
-	load(textureLoader, callbackFn )
+	load(textureLoader, glTFLoader, callbackFn )
 	{
-		this.mapLoaded = 0;
+		this.mapLoaded = false;
+		// note: we don't reset flair loaded, as flair applied to all maps
 		var instance = this; 	// so we can access map inside anon-function
 
 		this.loadJSON("maps_set1.json",
 				function(data) {
 					instance.jsonMaps = data.mapDefinition;
 					instance.tileConfig = data.tileConfig;
-					instance.mapLoaded = 1;
+					instance.mapLoaded = true;
 				},
 				function(xhr) { console.error(xhr); }
 		);
 
 		var waitForLoad = setInterval( function(){
-			if( instance.mapLoaded == 1 )
+			if( instance.mapLoaded == true )
 			{
 				instance.loadTextures( textureLoader, callbackFn  );
 				clearInterval( waitForLoad );
 			}
-		}, 100 );
+		}, 100 ); 
+
+        this.loadFlairModels( glTFLoader );
+
+        this.waitForMapLoad( callbackFn, this );
 	}
+
+	loadFlairModels( glTFLoader )
+	{
+		if( this.flairLoaded == false ) {
+			this.loadModel( "./models/BusStop_Raid/scene.gltf", glTFLoader, this.busStopLoadedCb.bind(this) );
+		}
+	}
+
+    loadModel(model, glTFLoader, isCreatedCallback) {
+        var instance = this;
+        glTFLoader.load( model, 
+            // Loaded    
+            function (gltf) {
+                isCreatedCallback(gltf);
+            },
+            // Progress
+            function (xhr ) {
+                console.log( model + " " + ( xhr.loaded / xhr.total * 100 ) + '% loaded' );
+            },
+            // Error
+            function( error ) {
+                console.log( 'Failed to load model ' + model );
+            }
+        );
+    }
+
+	busStopLoadedCb( glftObj ) {
+        var threeGroup = glftObj.scene;
+        var object3d  = threeGroup.getObjectByName( "OSG_Scene" );
+		this.flairBusStopModel = object3d;
+        this.flairLoaded = true; 	// only one model for now, so set here
+    }
+
+	waitForMapLoad(isCreatedCallback, context) 
+	{
+        var waitForAll = setInterval(function () {
+          if (context.mapLoaded == true &&
+			  context.flairLoaded == true ) {
+            clearInterval(waitForAll);
+            isCreatedCallback(); 
+          }
+        }, 100);
+    }
 
 	/**
 	* getMapInfo()
@@ -164,7 +219,8 @@ class MapManager
 
 		this.removeMapFromScene( sceneToUpdate );
 
-		this.activeMapObjects = [];
+		this.activeTileObjects = [];
+		this.activeTileMeshes = [];
 		this.idToMapObject = {};
 
 		this.createMapObjects( mapDef );
@@ -205,7 +261,6 @@ class MapManager
 
 		var stdTileGeo = new THREE.BoxGeometry( this.tileLength, this.tileHeight, this.tileLength );
 
-
 		for( var i = 0; i < layout.length; i++ )
 		{
 			var mapTile = layout[i];
@@ -236,30 +291,86 @@ class MapManager
 				borderMaterial, borderMaterial 	// front, back
 			];
 
-			var tileObject = new THREE.Mesh( stdTileGeo, materials );
-
+			var tileObject = new MapTile( "Tile_" + i, stdTileGeo, materials  );
+			let tileMesh = tileObject.getTileMesh();
+			tileObject.setTileType( tileId );
 			this.translateTilePosition( tileObject, mapTile.x, mapTile.z );
-
-			tileObject.name = "Tile_" + i;
 
 			if( mapTile.hasOwnProperty('role') )
 			{
-				tileObject.role = mapTile.role;
+				tileObject.setTileRole( mapTile.role );
+			
+				// We'll add bus stops and people to all 'END' tiles
+				if( mapTile.role == "END" ) {
+
+					let busStopMesh = this.flairBusStopModel; 	// take a copy and rename??
+					// TODO: set mesh position based on current type/id!!
+					var busStop = new TileFlair( "BusStop_" + i, "BusStop", busStopMesh );
+					this.positionBusStop( tileObject, busStopMesh );
+					busStopMesh.scale.set(0.3,0.3,0.3);
+					tileObject.addFlair( busStop );
+				}
 			}
 
-			this.activeMapObjects.push( tileObject );
-			this.idToMapObject[ tileObject.name ] = tileObject;
+			this.activeTileObjects.push( tileObject );
+			this.activeTileMeshes.push( tileMesh ); 	// to ease intersection checks
+			this.idToMapObject[ tileObject.m_Name ] = tileObject;
 		}
 	}
 
+	positionBusStop( tileObject, busStopMesh )
+	{
+		let tileMesh = tileObject.getTileMesh();
+		let x = tileMesh.position.x;
+		let y = tileMesh.position.y;
+		let z = tileMesh.position.z
+		
+		let rotX = 0;
+		let rotY = 0;
+		let rotZ = 0;
+
+		switch( tileObject.getTileType() ) {
+			case "tile_vert": 
+				x = x - 5;
+				rotY = 1.5;
+			break;
+
+			case "tile_horiz": 
+				z = z + 5;
+				rotY = 3.1;
+			break;
+
+			case "tile_cross":
+			case "tile_top_deadend":
+			case "tile_bottom_deadend":
+			case "tile_right_deadend":
+			case "tile_left_deadend":
+			case "tile_tjunct_horiz_down":
+			case "tile_tjunct_horiz_up":
+			case "tile_tjunct_vert_left":
+			case "tile_tjunct_vert_right":
+			case "tile_vert":
+			case "tile_horiz":
+			case "tile_bend_left_up":
+			case "tile_bend_left_down":
+			case "tile_bend_right_up":
+			case "tile_bend_right_down":
+				// TODO
+			break;
+		}
+
+		busStopMesh.rotation.set( rotX, rotY, rotZ );
+		busStopMesh.position.set( x , y, z );
+	}
+
 	/**
-	* getTileObjects
+	* getTileMeshes
 	*
 	*
 	*/
-	getTileObjects()
+	getTileMeshes()
 	{
-		return this.activeMapObjects;
+		return this.activeTileMeshes;
 	}
 
 	/**
@@ -280,57 +391,59 @@ class MapManager
 		var y = 0; 	// TBD: Only supporting a single height at this point
 		var z = relativeZ * this.tileLength;
 
-		tileObject.position.set( x, y, z );
+		tileObject.setTilePosition( x, y, z );
 	}
 
 	/**
 	* addMapToScene()
 	*
-	* Adds the map tiles in activeMapObjects to the scene
+	* Adds the map tiles in activeTileObjects to the scene
 	*
 	* @param {THREE.Scene} sceneToUpdate - scene to add map objects to
 	*
 	*/
 	addMapToScene( sceneToUpdate )
 	{
-		for( var i = 0; i < this.activeMapObjects.length; i++ )
-		{
-			var tileObject = this.activeMapObjects[i];
-			sceneToUpdate.add( tileObject );
-		}
+		this.applyToScene( sceneToUpdate, true );
 	}
 
 	/**
 	* removeMapFromScene()
 	*
-	* Removed the current map tiles in activeMapObjects from the scene
-	*
-	* @param {THREE.Scene} sceneToUpdate - scene to remove map objects from
-	*
-	*/
-	removeMapToScene( sceneToUpdate )
-	{
-		for( var i = 0; i < this.activeMapObjects.length; i++ )
-		{
-			var tileObject = this.activeMapObjects[i];
-			sceneToUpdate.remove( tileObject.name );
-		}
-	}
-
-	/**
-	* removeMapFromScene()
-	*
-	* Removes the map tiles listed in activeMapObjects from the scene
+	* Removes the map tiles listed in activeTileObjects from the scene
 	*
 	* @param {THREE.Scene} sceneToUpdate - scene to remove map objects from
 	*
 	*/
 	removeMapFromScene( sceneToUpdate )
 	{
-		for( var i = 0; i < this.activeMapObjects.length; i++ )
+		this.applyToScene( sceneToUpdate, false );
+	}
+
+	applyToScene( sceneToUpdate, addMeshes ) 
+	{
+		for( var i = 0; i < this.activeTileObjects.length; i++ )
 		{
-			var tileObject = this.activeMapObjects[i];
-			sceneToUpdate.remove( tileObject );
+			var tileObject = this.activeTileObjects[i];
+
+			if( addMeshes == true ) {
+				sceneToUpdate.add( tileObject.getTileMesh() );
+			}
+			else {
+				sceneToUpdate.remove( tileObject.getTileMesh() );
+			}
+
+			var flairMeshes = tileObject.getFlairMeshes();
+			if( flairMeshes ) {
+				flairMeshes.forEach( function(flair) {
+					if( addMeshes == true ) {
+						sceneToUpdate.add( flair );
+					}
+					else {
+						sceneToUpdate.remove( flair );
+					}
+				} );
+			}
 		}
 	}
 
@@ -339,28 +452,28 @@ class MapManager
 	getTileUnderPos( xPos, yPos, zPos )
 	{
 		var tileBeneath = "";
-		var mapTiles = this.getTileObjects();
+		var mapTiles = this.getTileMeshes();
 		if( mapTiles.length > 0 )
 		{
-		var botPos = new THREE.Vector3;
-		botPos.y = yPos;
-		botPos.x = xPos;
-		botPos.z = zPos;
-	
-		var vec = new THREE.Vector3;
-		vec.x = 0;
-		vec.y = -1;
-		vec.z = 0;
-	
-		this.raycaster.set( botPos, vec.normalize() );
-	
-		var intersects = this.raycaster.intersectObjects(mapTiles); // store intersecting objects
-	
-		if( intersects.length > 0 )
-		{
-			console.log( "getTileUnderBot() num tiles under bot is ", intersects.length );
-			tileBeneath = intersects[0].object.name;
-		}
+			var botPos = new THREE.Vector3;
+			botPos.y = yPos;
+			botPos.x = xPos;
+			botPos.z = zPos; 
+		
+			var vec = new THREE.Vector3;
+			vec.x = 0;
+			vec.y = -1;
+			vec.z = 0;
+		
+			this.raycaster.set( botPos, vec.normalize() );
+		
+			var intersects = this.raycaster.intersectObjects(mapTiles); // store intersecting objects
+		
+			if( intersects.length > 0 )
+			{
+				console.log( "getTileUnderBot() num tiles under bot is ", intersects.length );
+				tileBeneath = intersects[0].object.name;
+			}
 		}
 	
 		return tileBeneath;
@@ -398,9 +511,9 @@ class MapManager
 		{
 			role = "NO_TILE";
 		}
-		else if( tileObject.hasOwnProperty("role") )
+		else
 		{
-			role = tileObject.role;
+			role = tileObject.getTileRole();
 		}
 
 		return role;

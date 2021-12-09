@@ -490,7 +490,7 @@ class AlgoMission {
         this.m_MapLoaded = false;
         this.m_MapManager = new MapManager();
         var self = this;
-        this.m_MapManager.load(textureLoader, function () { self.m_MapLoaded = true; });
+        this.m_MapManager.load(textureLoader, this.m_GLTFLoader, function () { self.m_MapLoaded = true; });
     }
 
     addInstructionManager(mapManager) {
