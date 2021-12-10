@@ -341,7 +341,7 @@ class MapManager
 				}
 
 				if( mapTile.role == "SPECIAL_BIRD" ) {
-					let birdMesh = this.flairBirdModel; 	// TBD: take a copy and rename? Or will we always only have one?
+					let birdMesh = this.flairBirdModel;//;.clone(); 	// TBD: take a copy and rename? Or will we always only have one?
 					var bird = new TileFlairBird( "Bird_" + i, birdMesh );
 					this.positionBird( tileObject, birdMesh );
 					birdMesh.scale.set(0.5,0.5,0.5);

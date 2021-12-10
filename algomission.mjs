@@ -96,6 +96,74 @@ class AlgoMission {
         // Winner
         this.m_Trophy = null;
         this.m_TrophyLoaded = false;
+
+        // Points mean prizes...  but not yet; TBD
+        this.m_TotalScore = 0;
+        this.m_ScoreMesh = null;
+        this.m_ScoreLoaded = false;
+    }
+
+    updateScore( delta ) {
+        this.m_TotalScore = this.m_TotalScore + delta;
+
+        let update = this.m_TotalScore.toString();
+        this.updateScoreCanvas(update, 1.25, 0xffffff, 0x000000);
+
+        if( delta < 0 ) {
+            // TODO short sad sound?
+        }
+        else {
+            // TODO short happy sound?
+        }
+    }
+
+    createScoreMesh( msg, msgHeight, fgColour, optionalBgColour ) {
+        this.m_ScoreCanvas = document.createElement("canvas");
+        let context = this.m_ScoreCanvas.getContext("2d");
+        context.font = "40px sans-serif"; 
+        let border = 0.25;
+
+        let worldMultiplier = msgHeight/40;     // i.e. font size
+        let msgWidth = (context.measureText(msg).width * worldMultiplier) + border;
+        let totalWidth = Math.ceil( msgWidth/ worldMultiplier);
+        let totalHeight = Math.ceil( (msgHeight+border) / worldMultiplier);
+        this.m_ScoreCanvas.width = totalWidth;
+        this.m_ScoreCanvas.height = totalHeight;
+
+        if (optionalBgColour != undefined) {
+            context.fillStyle = "#" + optionalBgColour.toString(16).padStart(6, '0');
+            context.fillRect( 0,0, totalWidth,totalHeight);
+        }
+
+        context.textAlign = "center";
+        context.textBaseline = "middle"; 
+        context.fillStyle = "#" + fgColour.toString(16).padStart(6, '0');
+        context.font = "40px sans-serif"; 
+        context.fillText(msg, totalWidth/2, totalHeight/2);
+
+        let texture = new THREE.Texture(this.m_ScoreCanvas);
+        texture.minFilter = THREE.LinearFilter;
+        texture.needsUpdate = true;
+
+        let planeGeo = new THREE.PlaneGeometry(msgWidth, (msgHeight+border) );
+        let material = new THREE.MeshBasicMaterial( { side:THREE.DoubleSide, map:texture, transparent:true, opacity:1.0 } );
+        this.m_ScoreMesh = new THREE.Mesh(planeGeo, material);
+        this.m_ScoreMesh.ctx = context; 
+        this.m_ScoreMesh.wPxAll = totalWidth;
+        this.m_ScoreMesh.hPxAll = totalHeight;
+
+    }
+
+    updateScoreCanvas( msg, msgHeight, fgColour, optionalBgColour ) {
+
+        this.m_ScoreMesh.material.map.needsUpdate = true;
+
+        this.m_ScoreMesh.ctx.fillStyle = "#000000"; 
+        this.m_ScoreMesh.ctx.fillRect( 0, 0, this.m_ScoreMesh.wPxAll, this.m_ScoreMesh.hPxAll );
+        this.m_ScoreMesh.ctx.fillStyle = "#ffffff"; 
+        console.log( "fillText(" + msg + ", " + this.m_ScoreMesh.wPxAll*.8, ", " + this.m_ScoreMesh.hPxAll*.5);
+        //this.m_ScoreMesh.ctx.fillText(msg,this.m_ScoreMesh.wPxAll*.8, this.m_ScoreMesh.hPxAll*.5);
+        this.m_ScoreMesh.ctx.fillText(msg,this.m_ScoreMesh.wPxAll/2, this.m_ScoreMesh.hPxAll/2);
     }
 
     getCamera() {
@@ -367,6 +435,8 @@ class AlgoMission {
 
         this.addEventListeners();
 
+        this.createScore();
+
         var waitForLoad = setInterval(function () {
             if (self.m_BotLoaded == true &&
                 self.m_SkyLoaded == true &&
@@ -381,6 +451,16 @@ class AlgoMission {
             }
         }, 100);
 
+    }
+
+    createScore() {
+        if( this.m_ScoreMesh == null ) {
+            this.createScoreMesh( "                ", 1.25, 0xffffff, 0x000000);
+    
+            this.m_ScoreMesh.position.set( 7, 9, -10 );
+            this.m_ScoreMesh.name = "scoreMsg";
+            this.m_Camera.add(this.m_ScoreMesh);
+        }
     }
 
     setupGameLoop() {
@@ -710,7 +790,7 @@ class AlgoMission {
     messageToMesh( msg, msgHeight, fgColour, optionalBgColour ) {
         let msgCanvas = document.createElement("canvas");
         let context = msgCanvas.getContext("2d");
-        context.font = "40px sans-serif";
+        context.font = "40px sans-serif"; 
         let border = 0.25;
 
         let worldMultiplier = msgHeight/40;     // i.e. font size

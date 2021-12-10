@@ -36,6 +36,8 @@ class TileFlairLady {
         let bot = gameMgr.getBot();
         let targetPos = bot.mesh.position;
         this.runBoardingAnim( targetPos );
+
+        gameMgr.updateScore( 1000 );
     }
 
     deactivate( gameMgr ) {

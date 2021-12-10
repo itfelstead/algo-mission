@@ -48,15 +48,18 @@ class TileFlairBird {
             let targetPos = camera.position;
             this.runAngryBirdAnim( targetPos );
             this.m_SpecialTriggered = true;
+
+            gameMgr.updateScore( -100 );
         }
     }
 
     doSpecial( gameMgr ) {
         if( this.m_SpecialTriggered == false ) {
-            // fly off + add points
-            console.log("HAPPY BIRD FLY OFF!!!!");
+
             this.m_SpecialTriggered = true;
             this.runHappyBirdAnim();
+
+            gameMgr.updateScore( 5000 );
         }
     }
 
