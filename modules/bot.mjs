@@ -9,6 +9,7 @@
 import * as THREE from 'https://cdn.skypack.dev/pin/three@v0.135.0-pjGUcRG9Xt70OdXl97VF/mode=imports,min/optimized/three.js';
 
 import { InstructionManager } from "./instructionmanager.mjs";
+import { AlgoMission } from "../algomission.mjs";
 
 /**
  * @namespace The algo-mission namespace
@@ -47,13 +48,18 @@ class Bot {
   /**
   * constructor
   * @class The bot class. Represents the main character in the game.
+  * @param gameMgr - AlgoMission object
   */
-  constructor(instructionMgr, mapManager) {
-    this.instructionMgr = instructionMgr; 	// Bot understands instructions
+  constructor( gameMgr ) { //instructionMgr, mapManager) {
 
-    this.mapManager = mapManager;   // for map tile collision detection
+    // Bot uses the game manager to;
+    //  - get the instruction manager to understand instructions
+    //  - get the map manager for tile collision awareness
+    //  - pass to tiles, in case they need access to the camera etc..
+    //
+    this.gameMgr = gameMgr;
 
-    this.mapManager.registerObserver(this);    // We want to know something of interest happens (e.g. moved tile)
+    this.gameMgr.getMapManager().registerObserver(this);    // We want to know something of interest happens (e.g. moved tile)
 
     this.audioBusHorn = null;
     this.audioBusMove = null;
@@ -383,7 +389,7 @@ class Bot {
   *
   */
   preInstructionStart() {
-    var currentOp = this.instructionMgr.currentInstruction();
+    var currentOp = this.gameMgr.getInstructionMgr().currentInstruction();
 
     if (currentOp == InstructionManager.instructionConfig.FIRE) {
       if (this.audioBusHorn != null) {
@@ -521,7 +527,7 @@ class Bot {
     var y = this.mesh.position.y + 1; // bot is at same y pos as tiles so raise
     var z = this.mesh.position.z;
 
-    this.mapManager.activateTileUnderPos(x, y, z);
+    this.gameMgr.getMapManager().activateTileUnderPos(x, y, z, this.gameMgr );  
   }
 
   /**
@@ -588,7 +594,7 @@ class Bot {
   * @param {integer} movementTime - Time to spend moving
   */
   moveAccordingToInstruction(movementTime) {
-    var currentOp = this.instructionMgr.currentInstruction();
+    var currentOp = this.gameMgr.getInstructionMgr().currentInstruction();
 
     if (currentOp == InstructionManager.instructionConfig.FORWARD ||
       currentOp == InstructionManager.instructionConfig.BACK) {

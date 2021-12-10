@@ -11,7 +11,9 @@
 import * as THREE from 'https://cdn.skypack.dev/pin/three@v0.135.0-pjGUcRG9Xt70OdXl97VF/mode=imports,min/optimized/three.js';
 
 import { MapTile } from "./maptile.mjs";
-import { TileFlair } from "./tileflair.mjs";
+import { TileFlairBusStop } from "./tileflairbusstop.mjs";
+import { TileFlairLady } from "./tileflairlady.mjs";
+import { TileFlairBird } from "./tileflairbird.mjs";
 import { GLTFLoader } from 'https://cdn.skypack.dev/three@0.135.0/examples/jsm/loaders/GLTFLoader.js';
 
 /**
@@ -64,9 +66,13 @@ class MapManager
 	
 		// set to true when the JSON map/tile config has been loaded
 		this.mapLoaded = false;
-		this.flairLoaded = false;
+
+		// Flair models
+		this.flairToLoad = 3;
 		this.flairBusStopModel = null;
-	
+		this.flairLadyModel = null;
+		this.flairBirdModel = null;
+
 		this.raycaster = new THREE.Raycaster();
 	
 		this.currentActiveTile = "";
@@ -136,8 +142,10 @@ class MapManager
 
 	loadFlairModels( glTFLoader )
 	{
-		if( this.flairLoaded == false ) {
+		if( this.flairLoaded != 0 ) {
 			this.loadModel( "./models/BusStop_Raid/scene.gltf", glTFLoader, this.busStopLoadedCb.bind(this) );
+			this.loadModel( "./models/Mary_XaneMyers/scene.gltf", glTFLoader, this.ladyLoadedCb.bind(this) );
+			this.loadModel( "./models/Pigeon_FourthGreen/scene.gltf", glTFLoader, this.birdLoadedCb.bind(this) );
 		}
 	}
 
@@ -163,14 +171,30 @@ class MapManager
         var threeGroup = glftObj.scene;
         var object3d  = threeGroup.getObjectByName( "OSG_Scene" );
 		this.flairBusStopModel = object3d;
-        this.flairLoaded = true; 	// only one model for now, so set here
+        this.flairToLoad--;
+    }
+
+	ladyLoadedCb( glftObj ) {
+        var threeGroup = glftObj.scene;
+        var object3d  = threeGroup.getObjectByName( "Sketchfab_model" );//"Sketchfab_Scene" );
+
+		this.flairLadyModel = object3d;
+        this.flairToLoad--;
+    }
+
+	birdLoadedCb( glftObj ) {
+        var threeGroup = glftObj.scene;
+        var object3d  = threeGroup.getObjectByName( "OSG_Scene" );
+
+		this.flairBirdModel = object3d;
+        this.flairToLoad--;
     }
 
 	waitForMapLoad(isCreatedCallback, context) 
 	{
         var waitForAll = setInterval(function () {
           if (context.mapLoaded == true &&
-			  context.flairLoaded == true ) {
+			  context.flairToLoad == 0 ) {
             clearInterval(waitForAll);
             isCreatedCallback(); 
           }
@@ -303,12 +327,25 @@ class MapManager
 				// We'll add bus stops and people to all 'END' tiles
 				if( mapTile.role == "END" ) {
 
-					let busStopMesh = this.flairBusStopModel; 	// take a copy and rename??
-					// TODO: set mesh position based on current type/id!!
-					var busStop = new TileFlair( "BusStop_" + i, "BusStop", busStopMesh );
+					let busStopMesh = this.flairBusStopModel; 	// TBD: take a copy and rename? Or will we always only have one?
+					var busStop = new TileFlairBusStop( "BusStop_" + i, busStopMesh );
 					this.positionBusStop( tileObject, busStopMesh );
 					busStopMesh.scale.set(0.3,0.3,0.3);
 					tileObject.addFlair( busStop );
+
+					let ladyMesh = this.flairLadyModel; 	// TBD: take a copy and rename? Or will we always only have one?
+					var lady = new TileFlairLady( "Lady_" + i, ladyMesh );
+					this.positionLady( tileObject, ladyMesh );
+					ladyMesh.scale.set(0.15,0.15,0.15);
+					tileObject.addFlair( lady );
+				}
+
+				if( mapTile.role == "SPECIAL_BIRD" ) {
+					let birdMesh = this.flairBirdModel; 	// TBD: take a copy and rename? Or will we always only have one?
+					var bird = new TileFlairBird( "Bird_" + i, birdMesh );
+					this.positionBird( tileObject, birdMesh );
+					birdMesh.scale.set(0.5,0.5,0.5);
+					tileObject.addFlair( bird );
 				}
 			}
 
@@ -318,12 +355,12 @@ class MapManager
 		}
 	}
 
-	positionBusStop( tileObject, busStopMesh )
+	positionBusStop( tileObject, mesh )
 	{
 		let tileMesh = tileObject.getTileMesh();
 		let x = tileMesh.position.x;
 		let y = tileMesh.position.y;
-		let z = tileMesh.position.z
+		let z = tileMesh.position.z;
 		
 		let rotX = 0;
 		let rotY = 0;
@@ -355,12 +392,75 @@ class MapManager
 			case "tile_bend_left_down":
 			case "tile_bend_right_up":
 			case "tile_bend_right_down":
-				// TODO
+				// TBD
 			break;
 		}
 
-		busStopMesh.rotation.set( rotX, rotY, rotZ );
-		busStopMesh.position.set( x , y, z );
+		mesh.rotation.set( rotX, rotY, rotZ );
+		mesh.position.set( x , y, z );
+	}
+
+	positionLady( tileObject, mesh ) 
+	{
+		let tileMesh = tileObject.getTileMesh();
+		let x = tileMesh.position.x;
+		let y = tileMesh.position.y;
+		let z = tileMesh.position.z
+		
+		//
+		let rotX = 0;
+		let rotY = 0;
+		let rotZ = 3.1;
+
+		switch( tileObject.getTileType() ) {
+			case "tile_vert": 
+				x = x - 20;
+				z = z - 10;
+				rotY = -1.5;
+			break;
+
+			case "tile_horiz": 
+				x = x - 10;
+				z = z + 20;
+				rotY=0;
+			break;
+
+			case "tile_cross":
+			case "tile_top_deadend":
+			case "tile_bottom_deadend":
+			case "tile_right_deadend":
+			case "tile_left_deadend":
+			case "tile_tjunct_horiz_down":
+			case "tile_tjunct_horiz_up":
+			case "tile_tjunct_vert_left":
+			case "tile_tjunct_vert_right":
+			case "tile_vert":
+			case "tile_horiz":
+			case "tile_bend_left_up":
+			case "tile_bend_left_down":
+			case "tile_bend_right_up":
+			case "tile_bend_right_down":
+				// TBD
+			break;
+		}
+
+		mesh.rotation.set( rotX, rotY, rotZ );
+		mesh.position.set( x , y, z );
+	}
+
+	positionBird( tileObject, mesh )
+	{
+		let tileMesh = tileObject.getTileMesh();
+		let x = tileMesh.position.x;
+		let y = tileMesh.position.y + 4;
+		let z = tileMesh.position.z + 4;
+		
+		let rotX = 0;
+		let rotY = 2;
+		let rotZ = 0;
+
+		mesh.rotation.set( rotX, rotY, rotZ );
+		mesh.position.set( x , y, z );
 	}
 
 	/**
@@ -479,20 +579,38 @@ class MapManager
 		return tileBeneath;
 	}
 
-	activateTileUnderPos( xPos, yPos, zPos )
+	activateTileUnderPos( xPos, yPos, zPos, gameMgr )
 	{
 		var tileId = this.getTileUnderPos( xPos, yPos, zPos );
-		this.activateTile( tileId );
+		this.activateTile( tileId, gameMgr );
 	}
 
-	activateTile( tileId )
+	activateTile( tileId, gameMgr )
 	{
+		var currentInstruction = gameMgr.getInstructionMgr().currentInstruction();
+
+		if( currentInstruction == InstructionManager.instructionConfig.FIRE ) {
+			// remember, this will be triggered repeatedly throughout the instruction timer
+			// but that's ok as the flair will handle this
+			if( this.currentActiveTile != "" ) {
+				let oldTile = this.idToMapObject[ this.currentActiveTile ];
+				oldTile.doSpecial( gameMgr );
+			}
+		}
+
 		if( this.currentActiveTile != tileId )
 		{
 			var role = this.getTileRole( tileId );
 
-			// Any Map animation besed on entering a tile can go here
-			// TODO
+			if( this.currentActiveTile != "" ) {
+				let oldTile = this.idToMapObject[ this.currentActiveTile ];
+				oldTile.deactivate( gameMgr );
+			}
+
+			if( tileId != "" ) {
+				let newTile = this.idToMapObject[ tileId ];
+				newTile.activate( gameMgr );
+			}
 
 			this.notifyObservers( role );
 

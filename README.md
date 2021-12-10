@@ -40,7 +40,10 @@ This work is based on "Magical Mary - Original Mary Design" (https://sketchfab.c
 (converted to JSON via Blender & three.js Blender export tool but otherwise untouched)
 
 Trophy Model (model/Trophy_SyntyStudios);  
-(https://sketchfab.com/models/afd10a0435184da58cb5f391c0499b14) "A cool little cup just for fun :)" (https://skfb.ly/69oED) by Synty Studios(https://sketchfab.com/syntystudios) is licensed under Creative Commons Attribution(http://creativecommons.org/licenses/by/4.0/)
+(https://sketchfab.com/models/afd10a0435184da58cb5f391c0499b14) "A cool little cup just for fun :)"  (https://skfb.ly/69oED) by Synty Studios(https://sketchfab.com/syntystudios) is licensed under Creative Commons Attribution(http://creativecommons.org/licenses/by/4.0/)
+
+Pigeon Model (model/Pigeon_FourthGreen);  
+"Pigeon" (https://skfb.ly/6ULNn) by FourthGreen is licensed under Creative Commons Attribution (http://creativecommons.org/licenses/by/4.0/).
 
 Button art (textures/*.png);
 From http://www.clipartpanda.com/

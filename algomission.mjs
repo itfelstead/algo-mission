@@ -98,6 +98,22 @@ class AlgoMission {
         this.m_TrophyLoaded = false;
     }
 
+    getCamera() {
+        return this.m_Camera;
+    }
+
+    getBot() {
+        return this.m_Bot;
+    }
+
+    getMapManager() {
+        return this.m_MapManager;
+    }
+
+    getInstructionMgr() {
+        return this.m_InstructionMgr;
+    }
+
     runGame() {
         console.log("algo-mission v" + AlgoMission.VERSION + " starting...");
 
@@ -474,7 +490,7 @@ class AlgoMission {
 
     // calls botCb() when bot is ready
     addBot(instructionMgr, mapManager, botCb) {
-        this.m_Bot = new Bot(instructionMgr, mapManager);
+        this.m_Bot = new Bot( this );//instructionMgr, mapManager);
         this.m_Bot.load("models/ToonBus_VijayKumar/scene.gltf",
             this.m_GLTFLoader,
             this.m_AudioListener,
@@ -656,7 +672,6 @@ class AlgoMission {
         newMissionMesh.position.set( 0, -6, -10 );
         newMissionMesh.name = "newMissionMsg";
         
-        
         let animDelayMs = 10;
 
         let finalZ = -5;
@@ -729,14 +744,14 @@ class AlgoMission {
 
     removeWinnerScreen() {
 
-        let msg = this.m_Camera.getObjectByName("newMissionMsg");
-        if( msg ) {
-            this.m_Camera.remove( msg );
+        let missionMsg = this.m_Camera.getObjectByName("newMissionMsg");
+        if( missionMsg ) {
+            this.m_Camera.remove( missionMsg );
         }
 
-        msg = this.m_Camera.getObjectByName("wellDoneMsg");
-        if( msg ) {
-            this.m_Camera.remove( msg );
+        let wellDoneMsg = this.m_Camera.getObjectByName("wellDoneMsg");
+        if( wellDoneMsg ) {
+            this.m_Camera.remove( wellDoneMsg );
         }
 
         let finalZ = 1;

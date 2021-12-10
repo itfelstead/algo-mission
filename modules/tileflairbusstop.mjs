@@ -11,19 +11,17 @@
  */
  var ALGO = ALGO || {};
 
-class TileFlair {
+class TileFlairBusStop {
 
     /**
      * constructor
-     * @class The Tile Flair class. Represents an individual tile flair item.
+     * @class The Bus Stop Tile Flair class. Represents an individual tile flair item.
      *
     */
-     constructor( flairName, flairType, flairMesh ) {
+     constructor( flairName, flairMesh ) {
         this.m_Name = flairName;
         this.m_FlairMesh = flairMesh;
         this.m_FlairMesh.name = this.m_Name;
-
-        this.m_Type = flairType;
     }
 
     getMesh() {
@@ -34,9 +32,17 @@ class TileFlair {
         return this.m_Name;
     }
 
-    trigger() {
-        // animate?
+    activate( gameMgr ) {
+        // NOOP
+    }
+
+    deactivate( gameMgr ) {
+        // NOOP
+    }
+
+    doSpecial( gameMgr ) {
+        // NOOP
     }
 }
 
- export {TileFlair};
+ export {TileFlairBusStop};

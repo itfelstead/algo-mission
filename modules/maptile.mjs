@@ -88,6 +88,24 @@ import * as THREE from 'https://cdn.skypack.dev/pin/three@v0.135.0-pjGUcRG9Xt70O
 
         return flairMeshes;
     }
+
+    activate( gameMgr ) {
+        this.m_Flair.forEach( function(flair){ 
+            flair.activate( gameMgr );
+        });   
+    }
+
+    deactivate( gameMgr ) {
+        this.m_Flair.forEach( function(flair){ 
+            flair.deactivate( gameMgr );
+        });   
+    }
+
+    doSpecial( gameMgr ) {
+        this.m_Flair.forEach( function(flair){ 
+            flair.doSpecial( gameMgr );
+        });   
+    }
  }
 
  export { MapTile };
