@@ -455,7 +455,7 @@ class AlgoMission {
 
     createScore() {
         if( this.m_ScoreMesh == null ) {
-            this.createScoreMesh( "                ", 1.25, 0xffffff, 0x000000);
+            this.createScoreMesh( "---------------", 1.25, 0xffffff, 0x000000);
     
             this.m_ScoreMesh.position.set( 7, 9, -10 );
             this.m_ScoreMesh.name = "scoreMsg";
@@ -765,7 +765,12 @@ class AlgoMission {
 
         let buttonRevealDelayMs = 4000;
         (function animateTrophyClickMsg() {
-            if( buttonRevealDelayMs > 0 ) {
+            if( instance.m_State != AlgoMission.TAppState.WIN ) {
+                // if user already clicked us off of the win screen, then forget it
+                return;
+            }
+
+            if( buttonRevealDelayMs > 0 ) {   
                 buttonRevealDelayMs -= animDelayMs;
                 if( buttonRevealDelayMs <= 0 ) {
                     // Time to show the options
@@ -777,11 +782,11 @@ class AlgoMission {
             }
         })();
 
-        let stopWinnerAnim = false;
         let rotateStep = 0.01;
         (function animateTrophySpin() {
             instance.m_Trophy.rotation.y = instance.m_Trophy.rotation.y - rotateStep;
-            if (stopWinnerAnim==false) {
+            // Spin while on win
+            if (instance.m_State == AlgoMission.TAppState.WIN ) {
                 setTimeout(animateTrophySpin, animDelayMs);
             }
         })();
@@ -1162,34 +1167,36 @@ class AlgoMission {
 
         // Check for instruction button presses
         //
-        var instructionsUpdated = 0;
-        var instructionClicked =
-            this.m_ControlPanel.detectInstructionPress(event.clientX, event.clientY,
-                mainElement.clientHeight, this.m_Raycaster);
+        if( this.m_State == AlgoMission.TAppState.READY ) {
+            var instructionsUpdated = 0;
+            var instructionClicked =
+                this.m_ControlPanel.detectInstructionPress(event.clientX, event.clientY,
+                    mainElement.clientHeight, this.m_Raycaster);
 
-        if (instructionClicked) {
-            this.m_AmbientButtonClickSound.play();
+            if (instructionClicked) {
+                this.m_AmbientButtonClickSound.play();
 
-            // We handle CLEAR and GO here, others are added to the instruction list
-            if (instructionClicked == InstructionManager.instructionConfig.CLEAR) {
-                if (!this.m_InstructionMgr.isRunning()) {
-                    this.m_InstructionMgr.clearInstructions();
+                // We handle CLEAR and GO here, others are added to the instruction list
+                if (instructionClicked == InstructionManager.instructionConfig.CLEAR) {
+                    if (!this.m_InstructionMgr.isRunning()) {
+                        this.m_InstructionMgr.clearInstructions();
 
+                        instructionsUpdated = 1;
+                    }
+                }
+                else if (instructionClicked == InstructionManager.instructionConfig.GO) {
+                    if (!this.m_InstructionMgr.isRunning() && this.m_InstructionMgr.numInstructions() > 0) {
+                        this.m_InstructionMgr.startInstructions();
+                        this.m_Bot.prepareForNewInstruction();
+                    }
+                }
+                else if (instructionClicked == InstructionManager.instructionConfig.GRID) {
+                    this.toggleGridHelper();
+                }
+                else {
+                    this.m_InstructionMgr.addInstruction(instructionClicked);
                     instructionsUpdated = 1;
                 }
-            }
-            else if (instructionClicked == InstructionManager.instructionConfig.GO) {
-                if (!this.m_InstructionMgr.isRunning() && this.m_InstructionMgr.numInstructions() > 0) {
-                    this.m_InstructionMgr.startInstructions();
-                    this.m_Bot.prepareForNewInstruction();
-                }
-            }
-            else if (instructionClicked == InstructionManager.instructionConfig.GRID) {
-                this.toggleGridHelper();
-            }
-            else {
-                this.m_InstructionMgr.addInstruction(instructionClicked);
-                instructionsUpdated = 1;
             }
         }
 

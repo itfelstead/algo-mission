@@ -246,6 +246,7 @@ class MapManager
 		this.activeTileObjects = [];
 		this.activeTileMeshes = [];
 		this.idToMapObject = {};
+		this.currentActiveTile = "";
 
 		this.createMapObjects( mapDef );
 

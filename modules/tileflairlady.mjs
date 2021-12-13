@@ -49,7 +49,7 @@ class TileFlairLady {
     }
 
     runBoardingAnim( targetPos ) {
-        let maxAnimTimeMs = 2000;     // Hit target in 2 seconds of flight
+        let maxAnimTimeMs = 2000;     // Hit target in 2 seconds
         let animDelayMs = 10;
         let numSteps = maxAnimTimeMs/animDelayMs;
         let tStep = 1 / numSteps;
@@ -59,14 +59,15 @@ class TileFlairLady {
         (function animateLadyBoarding() {
             if( t < 1 ) {
                 t = t + tStep;
-                let newX = instance.lerp( instance.m_FlairMesh.position.x, targetPos.x, t );
-                let newY = instance.lerp( instance.m_FlairMesh.position.y, targetPos.y, t );
-                let newZ = instance.lerp( instance.m_FlairMesh.position.z, targetPos.z, t );
+                let newX = instance.lerp( instance.m_FlairMesh.position.x, targetPos.x, tStep );
+                let newY = instance.lerp( instance.m_FlairMesh.position.y, targetPos.y, tStep );
+                let newZ = instance.lerp( instance.m_FlairMesh.position.z, targetPos.z, tStep );
                 
                 instance.m_FlairMesh.position.set( newX, newY, newZ );
                
                 setTimeout(animateLadyBoarding, animDelayMs);
             }
+
         })();
     }
 
