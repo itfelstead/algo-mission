@@ -82,7 +82,7 @@ class TileFlairBird {
     }
 
     runAngryBirdAnim( targetPos ) {
-        let maxFlightTimeMs = 3000;     // Hit target in 2 seconds of flight
+        let maxFlightTimeMs = 750;     // Hit target in 0.75 seconds of flight
         let animDelayMs = 10;
         let numFlySteps = maxFlightTimeMs/animDelayMs;
         let tStep = 1 / numFlySteps;
@@ -92,13 +92,16 @@ class TileFlairBird {
         (function animateBirdAttack() {
             if( t < 1 ) {
                 t = t + tStep;
-                let newX = instance.lerp( instance.m_FlairMesh.position.x, targetPos.x, t );
-                let newY = instance.lerp( instance.m_FlairMesh.position.y, targetPos.y, t );
-                let newZ = instance.lerp( instance.m_FlairMesh.position.z, targetPos.z, t );
+                let newX = instance.lerp( instance.m_FlairMesh.position.x, targetPos.x, tStep );
+                let newY = instance.lerp( instance.m_FlairMesh.position.y, targetPos.y, tStep );
+                let newZ = instance.lerp( instance.m_FlairMesh.position.z, targetPos.z, tStep );
                 
                 instance.m_FlairMesh.position.set( newX, newY, newZ );
                
                 setTimeout(animateBirdAttack, animDelayMs);
+            }
+            else {
+                instance.m_FlairMesh.visible = false;
             }
         })();
     }

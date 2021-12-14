@@ -10,6 +10,9 @@
 
 import * as THREE from 'https://cdn.skypack.dev/pin/three@v0.135.0-pjGUcRG9Xt70OdXl97VF/mode=imports,min/optimized/three.js';
 
+// Cloning of skinned meshes (bird in our case) is not yet supported in the three.js core, so use SkeletonUtils
+import * as SkeletonUtils from 'https://threejs.org/examples/jsm/utils/SkeletonUtils.js';
+
 import { MapTile } from "./maptile.mjs";
 import { TileFlairBusStop } from "./tileflairbusstop.mjs";
 import { TileFlairLady } from "./tileflairlady.mjs";
@@ -69,9 +72,9 @@ class MapManager
 
 		// Flair models
 		this.flairToLoad = 3;
-		this.flairBusStopModel = null;
-		this.flairLadyModel = null;
-		this.flairBirdModel = null;
+		this.flairBusStopGltf = null;
+		this.flairLadyGltf = null;
+		this.flairBirdGltf = null;
 
 		this.raycaster = new THREE.Raycaster();
 	
@@ -168,25 +171,46 @@ class MapManager
     }
 
 	busStopLoadedCb( glftObj ) {
-        var threeGroup = glftObj.scene;
-        var object3d  = threeGroup.getObjectByName( "OSG_Scene" );
-		this.flairBusStopModel = object3d;
+
+		this.flairBusStopGltf = glftObj;
+
+		// Center the scene
+		const box = new THREE.Box3( ).setFromObject( this.flairBusStopGltf.scene );
+		const c = box.getCenter( new THREE.Vector3( ) );
+		const size = box.getSize( new THREE.Vector3( ) );
+		this.flairBusStopGltf.scene.position.set( -c.x, size.y / 2 - c.y, -c.z );
+		
         this.flairToLoad--;
     }
 
 	ladyLoadedCb( glftObj ) {
-        var threeGroup = glftObj.scene;
-        var object3d  = threeGroup.getObjectByName( "Sketchfab_model" );//"Sketchfab_Scene" );
 
-		this.flairLadyModel = object3d;
+		// .scene has;
+		//  - "Sketchfab_Scene" group (containing "Sketchfab_model" Object 3D)
+		//  - "Sketchfab_model" Object3D (containing materialmerger gles)
+		//  - materialmerger gles Object3D *containing the mesh)
+		//  - Mesh "Object_2"
+		this.flairLadyGltf = glftObj;
+
+		// Center the scene
+		const box = new THREE.Box3( ).setFromObject( this.flairLadyGltf.scene );
+		const c = box.getCenter( new THREE.Vector3( ) );
+		const size = box.getSize( new THREE.Vector3( ) );
+		this.flairLadyGltf.scene.position.set( -c.x, size.y / 2 - c.y, -c.z );
+		
         this.flairToLoad--;
     }
 
 	birdLoadedCb( glftObj ) {
-        var threeGroup = glftObj.scene;
-        var object3d  = threeGroup.getObjectByName( "OSG_Scene" );
 
-		this.flairBirdModel = object3d;
+		this.flairBirdGltf = glftObj;
+
+		// Center the scene
+		const box = new THREE.Box3( ).setFromObject( this.flairBirdGltf.scene );
+		const c = box.getCenter( new THREE.Vector3( ) );
+		const size = box.getSize( new THREE.Vector3( ) );
+		this.flairBirdGltf.scene.position.set( -c.x, size.y / 2 - c.y, -c.z );
+
         this.flairToLoad--;
     }
 
@@ -328,25 +352,13 @@ class MapManager
 				// We'll add bus stops and people to all 'END' tiles
 				if( mapTile.role == "END" ) {
 
-					let busStopMesh = this.flairBusStopModel; 	// TBD: take a copy and rename? Or will we always only have one?
-					var busStop = new TileFlairBusStop( "BusStop_" + i, busStopMesh );
-					this.positionBusStop( tileObject, busStopMesh );
-					busStopMesh.scale.set(0.3,0.3,0.3);
-					tileObject.addFlair( busStop );
+					this.addBusStopFlair( tileObject, "OSG_Scene", "BusStop_" + i );
 
-					let ladyMesh = this.flairLadyModel; 	// TBD: take a copy and rename? Or will we always only have one?
-					var lady = new TileFlairLady( "Lady_" + i, ladyMesh );
-					this.positionLady( tileObject, ladyMesh );
-					ladyMesh.scale.set(0.15,0.15,0.15);
-					tileObject.addFlair( lady );
+					this.addLadyFlair( tileObject, "Object_2", "Lady_" + i );
 				}
 
 				if( mapTile.role == "SPECIAL_BIRD" ) {
-					let birdMesh = this.flairBirdModel;//;.clone(); 	// TBD: take a copy and rename? Or will we always only have one?
-					var bird = new TileFlairBird( "Bird_" + i, birdMesh );
-					this.positionBird( tileObject, birdMesh );
-					birdMesh.scale.set(0.5,0.5,0.5);
-					tileObject.addFlair( bird );
+					this.addBirdFlair( tileObject, "OSG_Scene", "Bird_" + i );
 				}
 			}
 
@@ -354,6 +366,43 @@ class MapManager
 			this.activeTileMeshes.push( tileMesh ); 	// to ease intersection checks
 			this.idToMapObject[ tileObject.m_Name ] = tileObject;
 		}
+	}
+
+	addBusStopFlair( tileObject, meshName, flairName )
+	{
+		let flairMesh = this.flairBusStopGltf.scene.getObjectByName( meshName );
+		let model = new THREE.Object3D();
+		model.add( flairMesh.clone() );
+		let flair = new TileFlairBusStop( flairName, model );
+		this.positionBusStop( tileObject, model );
+		model.scale.set(0.25,0.25,0.25);
+		tileObject.addFlair( flair );
+	}
+
+	addLadyFlair( tileObject, meshName, flairName )
+	{
+		let flairMesh = this.flairLadyGltf.scene.getObjectByName( meshName );
+		let model = new THREE.Object3D();
+		model.add( flairMesh.clone() );
+		let flair = new TileFlairLady( flairName, model );
+		this.positionLady( tileObject, model );
+		model.scale.set(0.15,0.15,0.15);
+		model.rotation.set(-1.6,0,1.8);
+		tileObject.addFlair( flair );
+	}
+
+	addBirdFlair( tileObject, meshName, flairName )
+	{
+		let flairMesh = this.flairBirdGltf.scene.getObjectByName( meshName );
+		let model = new THREE.Object3D();
+
+		// Cloning of skinned meshes is not yet supported in the three.js core, so use SkeletonUtils
+		model.add( SkeletonUtils.clone( flairMesh ) );
+		
+		let flair = new TileFlairBird( flairName, model );
+		this.positionBird( tileObject, model );
+		model.scale.set(0.5,0.5,0.5);
+		tileObject.addFlair( flair );
 	}
 
 	positionBusStop( tileObject, mesh )
@@ -369,12 +418,13 @@ class MapManager
 
 		switch( tileObject.getTileType() ) {
 			case "tile_vert": 
-				x = x - 5;
+				x = x - 20;
 				rotY = 1.5;
 			break;
 
-			case "tile_horiz": 
-				z = z + 5;
+			case "tile_horiz":
+				x = x +5; 
+				z = z + 20;
 				rotY = 3.1;
 			break;
 
@@ -453,8 +503,8 @@ class MapManager
 	{
 		let tileMesh = tileObject.getTileMesh();
 		let x = tileMesh.position.x;
-		let y = tileMesh.position.y + 4;
-		let z = tileMesh.position.z + 4;
+		let y = tileMesh.position.y + 14;
+		let z = tileMesh.position.z + 20;
 		
 		let rotX = 0;
 		let rotY = 2;
