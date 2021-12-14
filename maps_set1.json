@@ -31,7 +31,7 @@
             "tileLayout": [
                 { "x": 0, "z":-1, "id": "tile_bottom_deadend" },
                 { "x": 0, "z": 0, "id": "tile_vert", "role": "START" },
-                { "x": 0, "z": 1, "id": "tile_vert" },
+                { "x": 0, "z": 1, "id": "tile_vert", "role": "SPECIAL_BIRD" },
                 { "x": 0, "z": 2, "id": "tile_vert", "role": "SPECIAL_BIRD" },
                 { "x": 0, "z": 3, "id": "tile_vert", "role": "END"  }
             ]

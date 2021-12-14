@@ -41,8 +41,10 @@ class MapManager
 	* constructor
 	* @class The MapManager class. Manages maps in the game.
 	*/
-	constructor() 
+	constructor( gameMgr ) 
 	{
+		this.gameMgr = gameMgr;
+
 		this.tileLength = 0; 	// resized after bot is loaded
 		this.tileHeight = 0.1; 	// resized after bot is loaded
 	
@@ -340,7 +342,7 @@ class MapManager
 				borderMaterial, borderMaterial 	// front, back
 			];
 
-			var tileObject = new MapTile( "Tile_" + i, stdTileGeo, materials  );
+			var tileObject = new MapTile( "Tile_" + i, stdTileGeo, materials, this.gameMgr );
 			let tileMesh = tileObject.getTileMesh();
 			tileObject.setTileType( tileId );
 			this.translateTilePosition( tileObject, mapTile.x, mapTile.z );
@@ -373,7 +375,7 @@ class MapManager
 		let flairMesh = this.flairBusStopGltf.scene.getObjectByName( meshName );
 		let model = new THREE.Object3D();
 		model.add( flairMesh.clone() );
-		let flair = new TileFlairBusStop( flairName, model );
+		let flair = new TileFlairBusStop( flairName, model, this.gameMgr );
 		this.positionBusStop( tileObject, model );
 		model.scale.set(0.25,0.25,0.25);
 		tileObject.addFlair( flair );
@@ -384,7 +386,7 @@ class MapManager
 		let flairMesh = this.flairLadyGltf.scene.getObjectByName( meshName );
 		let model = new THREE.Object3D();
 		model.add( flairMesh.clone() );
-		let flair = new TileFlairLady( flairName, model );
+		let flair = new TileFlairLady( flairName, model, this.gameMgr );
 		this.positionLady( tileObject, model );
 		model.scale.set(0.15,0.15,0.15);
 		model.rotation.set(-1.6,0,1.8);
@@ -399,11 +401,13 @@ class MapManager
 		// Cloning of skinned meshes is not yet supported in the three.js core, so use SkeletonUtils
 		model.add( SkeletonUtils.clone( flairMesh ) );
 		
-		let flair = new TileFlairBird( flairName, model );
+		let flair = new TileFlairBird( flairName, model, this.flairBirdGltf, this.gameMgr );
 		this.positionBird( tileObject, model );
 		model.scale.set(0.5,0.5,0.5);
 		tileObject.addFlair( flair );
 	}
+
+
 
 	positionBusStop( tileObject, mesh )
 	{
@@ -630,22 +634,22 @@ class MapManager
 		return tileBeneath;
 	}
 
-	activateTileUnderPos( xPos, yPos, zPos, gameMgr )
+	activateTileUnderPos( xPos, yPos, zPos )
 	{
 		var tileId = this.getTileUnderPos( xPos, yPos, zPos );
-		this.activateTile( tileId, gameMgr );
+		this.activateTile( tileId );
 	}
 
-	activateTile( tileId, gameMgr )
+	activateTile( tileId )
 	{
-		var currentInstruction = gameMgr.getInstructionMgr().currentInstruction();
+		var currentInstruction = this.gameMgr.getInstructionMgr().currentInstruction();
 
 		if( currentInstruction == InstructionManager.instructionConfig.FIRE ) {
 			// remember, this will be triggered repeatedly throughout the instruction timer
 			// but that's ok as the flair will handle this
 			if( this.currentActiveTile != "" ) {
 				let oldTile = this.idToMapObject[ this.currentActiveTile ];
-				oldTile.doSpecial( gameMgr );
+				oldTile.doSpecial();
 			}
 		}
 
@@ -655,12 +659,12 @@ class MapManager
 
 			if( this.currentActiveTile != "" ) {
 				let oldTile = this.idToMapObject[ this.currentActiveTile ];
-				oldTile.deactivate( gameMgr );
+				oldTile.deactivate();
 			}
 
 			if( tileId != "" ) {
 				let newTile = this.idToMapObject[ tileId ];
-				newTile.activate( gameMgr );
+				newTile.activate();
 			}
 
 			this.notifyObservers( role );
@@ -695,7 +699,11 @@ class MapManager
 	*/
 	update( timeElapsed )
 	{
-		// TODO animate the map?
+		for( var i = 0; i < this.activeTileObjects.length; i++ )
+		{
+			var tileObject = this.activeTileObjects[i];
+			tileObject.update( timeElapsed );
+		}
 	}
 
 	/**

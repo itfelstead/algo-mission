@@ -18,10 +18,11 @@ class TileFlairLady {
      * @class The Lady Tile Flair class. Represents an individual tile flair item.
      *
     */
-     constructor( flairName, flairMesh ) {
+     constructor( flairName, flairMesh, gameMgr ) {
         this.m_Name = flairName;
         this.m_FlairMesh = flairMesh;
         this.m_FlairMesh.name = this.m_Name;
+        this.m_GameMgr = gameMgr;
     }
 
     getMesh() {
@@ -32,20 +33,24 @@ class TileFlairLady {
         return this.m_Name;
     }
 
-    activate( gameMgr ) {
-        let bot = gameMgr.getBot();
+    activate() {
+        let bot = this.m_GameMgr.getBot();
         let targetPos = bot.mesh.position;
         this.runBoardingAnim( targetPos );
 
-        gameMgr.updateScore( 1000 );
+        this.m_GameMgr.updateScore( 1000 );
     }
 
-    deactivate( gameMgr ) {
+    deactivate() {
         // NOOP
     }
 
-    doSpecial( gameMgr ) {
+    doSpecial() {
         // NOOP
+    }
+
+    update( timeElapsed ) {
+
     }
 
     runBoardingAnim( targetPos ) {

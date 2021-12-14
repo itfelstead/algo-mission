@@ -262,7 +262,7 @@ class AlgoMission {
 
             this.m_Bot.update(AlgoMission.UPDATE_TIME_STEP)
 
-            this.m_MapManager.update();
+            this.m_MapManager.update(AlgoMission.UPDATE_TIME_STEP);
         }
     }
 
@@ -584,7 +584,7 @@ class AlgoMission {
 
     addMapManager(textureLoader) {
         this.m_MapLoaded = false;
-        this.m_MapManager = new MapManager();
+        this.m_MapManager = new MapManager( this );
         var self = this;
         this.m_MapManager.load(textureLoader, this.m_GLTFLoader, function () { self.m_MapLoaded = true; });
     }

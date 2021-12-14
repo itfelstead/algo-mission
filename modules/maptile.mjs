@@ -20,10 +20,11 @@ import * as THREE from 'https://cdn.skypack.dev/pin/three@v0.135.0-pjGUcRG9Xt70O
      * @class The Tile class. Represents an individual tile on the map.
      *
     */
-    constructor( tileName, geometry, material ) {
+    constructor( tileName, geometry, material, gameMgr ) {
         this.m_Name = tileName;
         this.m_TileMesh = new THREE.Mesh( geometry, material );
         this.m_TileMesh.name = this.m_Name;
+        this.m_GameMgr = gameMgr;
 
         this.m_Role = "";
         this.m_Type = "";   // "tile_vert" etc...
@@ -80,6 +81,12 @@ import * as THREE from 'https://cdn.skypack.dev/pin/three@v0.135.0-pjGUcRG9Xt70O
         }
     }
 
+    update( timeElapsed ) {
+        this.m_Flair.forEach( function(flair){ 
+            flair.update( timeElapsed );
+        });
+    }
+
     getFlairMeshes() {
         let flairMeshes = [];
         this.m_Flair.forEach( function(flair){ 
@@ -89,21 +96,21 @@ import * as THREE from 'https://cdn.skypack.dev/pin/three@v0.135.0-pjGUcRG9Xt70O
         return flairMeshes;
     }
 
-    activate( gameMgr ) {
+    activate() {
         this.m_Flair.forEach( function(flair){ 
-            flair.activate( gameMgr );
+            flair.activate();
         });   
     }
 
-    deactivate( gameMgr ) {
+    deactivate() {
         this.m_Flair.forEach( function(flair){ 
-            flair.deactivate( gameMgr );
+            flair.deactivate( );
         });   
     }
 
-    doSpecial( gameMgr ) {
+    doSpecial() {
         this.m_Flair.forEach( function(flair){ 
-            flair.doSpecial( gameMgr );
+            flair.doSpecial();
         });   
     }
  }

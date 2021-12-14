@@ -18,10 +18,11 @@ class TileFlairBusStop {
      * @class The Bus Stop Tile Flair class. Represents an individual tile flair item.
      *
     */
-     constructor( flairName, flairMesh ) {
+     constructor( flairName, flairMesh, gameMgr ) {
         this.m_Name = flairName;
         this.m_FlairMesh = flairMesh;
         this.m_FlairMesh.name = this.m_Name;
+        this.m_GameMgr = gameMgr;
     }
 
     getMesh() {
@@ -32,15 +33,19 @@ class TileFlairBusStop {
         return this.m_Name;
     }
 
-    activate( gameMgr ) {
+    activate() {
         // NOOP
     }
 
-    deactivate( gameMgr ) {
+    deactivate() {
         // NOOP
     }
 
-    doSpecial( gameMgr ) {
+    update( timeElapsed ) {
+
+    }
+
+    doSpecial() {
         // NOOP
     }
 }

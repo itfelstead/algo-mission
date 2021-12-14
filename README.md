@@ -71,3 +71,6 @@ https://creativecommons.org/licenses/by-nc/3.0/
 
 Small applause: (462362__breviceps__small-applause.wav) Small applause (~30 people) by Breviceps
 https://creativecommons.org/publicdomain/zero/1.0/
+
+Australian Magpie - (42793__digifishmusic__australian-magpie-gymnorhina-tibicen-squawk-1.wav) Gymnorhina tibicen - Squawk 1.wav by digifishmusic
+https://creativecommons.org/licenses/by/3.0/

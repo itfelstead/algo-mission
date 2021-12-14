@@ -527,7 +527,7 @@ class Bot {
     var y = this.mesh.position.y + 1; // bot is at same y pos as tiles so raise
     var z = this.mesh.position.z;
 
-    this.gameMgr.getMapManager().activateTileUnderPos(x, y, z, this.gameMgr );  
+    this.gameMgr.getMapManager().activateTileUnderPos(x, y, z );  
   }
 
   /**
