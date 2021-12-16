@@ -6,6 +6,8 @@
 
 "use strict";
 
+import { InstructionManager } from './instructionmanager.mjs';
+
 /**
  * @namespace The algo-mission namespace
  */
@@ -45,7 +47,7 @@ class TileFlairBusStop {
 
     }
 
-    doSpecial() {
+    doSpecial( instruction ) {
         // NOOP
     }
 }

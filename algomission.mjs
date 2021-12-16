@@ -161,7 +161,7 @@ class AlgoMission {
         this.m_ScoreMesh.ctx.fillStyle = "#000000"; 
         this.m_ScoreMesh.ctx.fillRect( 0, 0, this.m_ScoreMesh.wPxAll, this.m_ScoreMesh.hPxAll );
         this.m_ScoreMesh.ctx.fillStyle = "#ffffff"; 
-        console.log( "fillText(" + msg + ", " + this.m_ScoreMesh.wPxAll*.8, ", " + this.m_ScoreMesh.hPxAll*.5);
+        //console.log( "fillText(" + msg + ", " + this.m_ScoreMesh.wPxAll*.8, ", " + this.m_ScoreMesh.hPxAll*.5);
         //this.m_ScoreMesh.ctx.fillText(msg,this.m_ScoreMesh.wPxAll*.8, this.m_ScoreMesh.hPxAll*.5);
         this.m_ScoreMesh.ctx.fillText(msg,this.m_ScoreMesh.wPxAll/2, this.m_ScoreMesh.hPxAll/2);
     }
@@ -188,7 +188,7 @@ class AlgoMission {
         this.m_State = AlgoMission.TAppState.INITIAL;
         this.initialise();
 
-        // TODO: We'll implement a proper score manager at some point, For now, just listen for 'END'
+        // we listen to the map manager for win state changes
         this.m_MapManager.registerObserver(this);
 
 
@@ -196,12 +196,17 @@ class AlgoMission {
         this.gameLoop(); 	// intial kickoff, subsequest calls via requestAnimationFrame()
     }
 
-    updateTriggered(role) {
-        console.log("Window got an event from the map, " + role);
-        if (role == "END") {
-            this.m_Win = 1;
+    updateTriggered(notificationType, notificationValue) {
+        console.log("Window got an event from the map, " + notificationType + ", " + notificationValue);
+        if ( notificationType == MapManager.TNotificationType.STATE_CHANGE ) {
+            if ( notificationValue == MapManager.TState.WIN ) {
+                this.m_Win = 1;
+            }
         }
-    }
+        else if( notificationType == MapManager.TNotificationType.SCORE_CHANGE ) {
+            this.updateScore( notificationValue );
+        }
+    }  
 
     actOnState() {
         switch (this.m_State) {

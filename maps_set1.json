@@ -28,12 +28,13 @@
             "name": "Straight Forward",
             "instructions": "Your first few steps... move forward 3 times to reach your goal",
             "difficulty": 1,
+            "successCriteria": 1,
             "tileLayout": [
                 { "x": 0, "z":-1, "id": "tile_bottom_deadend" },
                 { "x": 0, "z": 0, "id": "tile_vert", "role": "START" },
                 { "x": 0, "z": 1, "id": "tile_vert", "role": "SPECIAL_BIRD" },
                 { "x": 0, "z": 2, "id": "tile_vert", "role": "SPECIAL_BIRD" },
-                { "x": 0, "z": 3, "id": "tile_vert", "role": "END"  }
+                { "x": 0, "z": 3, "id": "tile_vert", "role": "BUSSTOP"  }
             ]
         },
         {
@@ -41,12 +42,13 @@
             "name": "The Left Turn",
             "instructions": "Now lets try the steering wheel! Move forward 2 times, turn left once, then forward once to reach your goal",
             "difficulty": 1,
+            "successCriteria": 1,
             "tileLayout": [
                 { "x": 0, "z":-1, "id": "tile_bottom_deadend" },
                 { "x": 0, "z": 0, "id": "tile_vert", "role": "START" },
-                { "x": 0, "z": 1, "id": "tile_vert" },
+                { "x": 0, "z": 1, "id": "tile_vert", "role": "BUSSTOP" },
                 { "x": 0, "z": 2, "id": "tile_bend_right_down" },
-                { "x": 1, "z": 2, "id": "tile_horiz", "role": "END" }
+                { "x": 1, "z": 2, "id": "tile_horiz", "role": "BUSSTOP" }
             ]
         },
         {
@@ -54,13 +56,14 @@
             "name": "Left, Right!",
             "instructions": "OK, time to get dizzy, try this one...",
             "difficulty": 1,
+            "successCriteria": 2,
             "tileLayout": [
                 { "x": 0, "z":-1, "id": "tile_bottom_deadend" },
                 { "x": 0, "z": 0, "id": "tile_bend_right_down", "role": "START" },
                 { "x":1, "z": 0, "id": "tile_bend_left_up" },
                 { "x":1, "z": 1, "id": "tile_bend_right_down" },
                 { "x":2, "z": 1, "id": "tile_bend_left_up" },
-                { "x":2, "z": 2, "id": "tile_vert", "role": "END" },
+                { "x":2, "z": 2, "id": "tile_vert", "role": "BUSSTOP" },
                 { "x":2, "z": 3, "id": "tile_top_deadend" }
             ]
         },
@@ -69,6 +72,7 @@
             "name": "Loopy!",
             "instructions": "OK, not dizzy enough? try this one...",
             "difficulty": 3,
+            "successCriteria": 1,
             "tileLayout": [
                 { "x": 0, "z":-1, "id": "tile_bottom_deadend" },
                 { "x": 1, "z":0, "id": "tile_left_deadend" },
@@ -81,7 +85,7 @@
                 { "x":0, "z": 3, "id": "tile_tjunct_horiz_down" },
                 { "x":1, "z": 3, "id": "tile_bend_left_down" },
                 { "x":1, "z": 2, "id": "tile_tjunct_horiz_up" },
-                { "x":2, "z": 2, "id": "tile_horiz", "role": "END" },
+                { "x":2, "z": 2, "id": "tile_horiz", "role": "BUSSTOP" },
                 { "x":3, "z": 2, "id": "tile_left_deadend" }
             ]
         }

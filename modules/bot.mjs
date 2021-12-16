@@ -9,6 +9,7 @@
 import * as THREE from 'https://cdn.skypack.dev/pin/three@v0.135.0-pjGUcRG9Xt70OdXl97VF/mode=imports,min/optimized/three.js';
 
 import { InstructionManager } from "./instructionmanager.mjs";
+import { MapManager } from "./mapmanager.mjs";
 import { AlgoMission } from "../algomission.mjs";
 
 /**
@@ -94,18 +95,17 @@ class Bot {
     this.botMapStatus = Bot.TBotMapState.NONE;
   }
 
-  updateTriggered(role) {
-    console.log("Bot got an event from the map, " + role);
+  updateTriggered(notificationType, notificationValue) {
+    console.log("Bot got an event from the map, " + notificationType + ", " + notificationValue );
 
-    // Make bot react to move to a new tile role (if supported)
-    if (role != "") {
-      if (role == "NO_TILE") {
-        this.botMapStatus = Bot.TBotMapState.BAD;
-      }
-      else if (role == "END") {
-        this.botMapStatus = Bot.TBotMapState.GOOD;
-      }
-    }
+		if( notificationType == MapManager.TNotificationType.STATE_CHANGE ) {
+			if( notificationValue == MapManager.TState.DEAD ) {
+				this.botMapStatus = Bot.TBotMapState.BAD;
+			}
+			else if ( notificationValue == MapManager.TState.WIN ) {
+				this.botMapStatus = Bot.TBotMapState.GOOD;
+			}
+		}
   }
 
   /**

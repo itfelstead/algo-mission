@@ -8,6 +8,7 @@
 
 import * as THREE from 'https://cdn.skypack.dev/pin/three@v0.135.0-pjGUcRG9Xt70OdXl97VF/mode=imports,min/optimized/three.js';
 import { AlgoMission } from "../algomission.mjs";
+import { InstructionManager } from './instructionmanager.mjs';
 
 /**
  * @namespace The algo-mission namespace
@@ -96,7 +97,7 @@ class TileFlairBird {
                 this.m_DoneSpecial = true;
                 this.runHappyBirdAnim();
                 this.flap();
-                this.m_GameMgr.updateScore( 5000 );
+                this.m_GameMgr.m_MapManager.registerFlairSuccess( 5000, false );
                 break;
         }
     }
@@ -167,8 +168,8 @@ class TileFlairBird {
             case TileFlairBird.TBirdState.GOODBYE_BOT:
                     // if we aren't gone, then the bot has tried to run us over!
                     let camera = this.m_GameMgr.getCamera();
-                    let targetPos = camera.position;
-                    this.runAngryBirdAnim( targetPos );
+    
+                    this.runAngryBirdAnim( camera );
                     this.flap();
                     this.m_GameMgr.updateScore( -100 );
                 break;
@@ -197,8 +198,9 @@ class TileFlairBird {
         }
     }
 
-    doSpecial( gameMgr ) {
-        if( this.m_SpecialTriggered == false ) {
+    doSpecial( instruction ) {
+        if( instruction == InstructionManager.instructionConfig.FIRE &&
+            this.m_SpecialTriggered == false ) {
             this.m_SpecialTriggered = true;
         }
     }
@@ -234,41 +236,44 @@ class TileFlairBird {
         })();
     }
 
-    runAngryBirdAnim( targetPos ) {
+    runAngryBirdAnim( camera ) {
+
+        let targetPos = camera.position;
+        let targetQuaternion = camera.quaternion;
+
         let maxFlightTimeMs = 2000;     // Hit target in # milliseconds of flight
         let animDelayMs = 10;
         let numFlySteps = maxFlightTimeMs/animDelayMs;
         let tStep = 1 / numFlySteps;
         let t = 0;  // complete when t = 1
-
-        let targetYRot = 3; 
-
         let instance = this;
+
+        let deltaX = (targetPos.x - instance.m_FlairMesh.position.x) / numFlySteps;
+        let deltaY = (targetPos.y - instance.m_FlairMesh.position.y) / numFlySteps;
+        let deltaZ = (targetPos.z - instance.m_FlairMesh.position.z) / numFlySteps;
+
         (function animateBirdAttack() {
             instance.m_FlownAway = true;
             if( t < 1 ) {
+                // turn to attack camera
+                if (!instance.m_FlairMesh.quaternion.equals(targetQuaternion)) {
+                    instance.m_FlairMesh.quaternion.rotateTowards(targetQuaternion, t);
+                }
+
+                // fly
                 t = t + tStep;
-                let newX = instance.lerp( instance.m_FlairMesh.position.x, targetPos.x, tStep );
-                let newY = instance.lerp( instance.m_FlairMesh.position.y, targetPos.y, tStep );
-                let newZ = instance.lerp( instance.m_FlairMesh.position.z, targetPos.z, tStep );
-                
+                let newX = instance.m_FlairMesh.position.x + deltaX;
+                let newY = instance.m_FlairMesh.position.y + deltaY;
+                let newZ = instance.m_FlairMesh.position.z + deltaZ;
+
                 instance.m_FlairMesh.position.set( newX, newY, newZ );
 
-                // turn to attack camera
-                if(instance.m_FlairMesh.rotation.y < targetYRot ) {
-                    instance.m_FlairMesh.rotation.y += 0.1;
-                }
-               
                 setTimeout(animateBirdAttack, animDelayMs);
             }
             else {
                 instance.m_FlairMesh.visible = false;
             }
         })();
-    }
-
-    lerp( a, b, t ) {
-        return a + (b-a) * t;
     }
 }
 

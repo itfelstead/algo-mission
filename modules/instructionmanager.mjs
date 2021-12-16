@@ -65,15 +65,22 @@ class InstructionManager {
 		this.currentHint = InstructionManager.TMapState.NONE;
 	}
 
-	updateTriggered(role) {
-		console.log("InstructionManager got an event from the map, " + role);
+	updateTriggered(notificationType, notificationValue) {
+		console.log("InstructionManager got an event from the map, " + notificationType + ", " + notificationValue);
 
-		// Make bot react to move to a new tile role (if supported)
-		if (role != "") {
-			if (role == "NO_TILE") {
+		if( notificationType == MapManager.TNotificationType.STATE_CHANGE ) {
+			if( notificationValue == MapManager.TState.DEAD ) {
 				this.currentHint = InstructionManager.TMapState.BAD;
 			}
-			else if (role == "END") {
+			else if ( notificationValue == MapManager.TState.WIN ) {
+				this.currentHint = InstructionManager.TMapState.GOOD;
+			}
+		}
+		else if( notificationType == MapManager.TNotificationType.SCORE_CHANGE ) {
+			if( notificationValue < 0 ) {
+				this.currentHint = InstructionManager.TMapState.BAD;
+			}
+			else {
 				this.currentHint = InstructionManager.TMapState.GOOD;
 			}
 		}
@@ -244,7 +251,7 @@ class InstructionManager {
 	*/
 	nextInstruction() {
 		this.instructionPtr++;
-		console.log("nextInstruction; ", this.instructionPtr);
+		// console.log("nextInstruction; ", this.instructionPtr);
 		if (this.instructionPtr >= this.instructions.length) {
 			this.instructionPtr = InstructionManager.instructionConfig.NO_INSTRUCTION;
 			return undefined;

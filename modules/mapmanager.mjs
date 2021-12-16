@@ -37,6 +37,17 @@ class MapManager
 	*/
 	static INITIAL_MAP_ID = 0;
 
+	static TNotificationType = {
+		TILE_CHANGE:  0, 		// other param is tile role
+		SCORE_CHANGE:  1, 		// other param is point delta 			
+		STATE_CHANGE: 2 		// other param is win, die
+	};
+
+	static TState = {
+		DEAD:  			0,
+		WIN:  			1
+	};
+
 	/**
 	* constructor
 	* @class The MapManager class. Manages maps in the game.
@@ -83,6 +94,8 @@ class MapManager
 		this.currentActiveTile = "";
 	
 		this.observers = [];
+
+		this.m_Successes = 0;
 	}
 
 	registerObserver(observer)
@@ -101,11 +114,26 @@ class MapManager
 		);
 	}
 
-	notifyObservers(tileRole)
+	registerFlairSuccess( scoreDelta, contributesToWin )
+	{
+		this.notifyObservers( MapManager.TNotificationType.SCORE_CHANGE, scoreDelta );
+		
+		if( contributesToWin ) {
+			if( ++this.m_Successes >= this.m_MapSuccessCriteria ) {
+				this.notifyObservers( MapManager.TNotificationType.STATE_CHANGE, MapManager.TState.WIN )
+			} 
+		}
+	}
+
+	registerFlairFailure( scoreDelta ) {
+		this.notifyObservers( MapManager.TNotificationType.SCORE_CHANGE, scoreDelta );
+	}
+
+	notifyObservers(notificationType, notificationValue)
 	{
 		this.observers.forEach(
 			function(observer) {
-				observer.updateTriggered( tileRole );
+				observer.updateTriggered( notificationType, notificationValue );
 			}
 		);
 	}
@@ -273,6 +301,8 @@ class MapManager
 		this.activeTileMeshes = [];
 		this.idToMapObject = {};
 		this.currentActiveTile = "";
+		this.m_Successes = 0;
+		this.m_MapSuccessCriteria = mapDef.successCriteria;
 
 		this.createMapObjects( mapDef );
 
@@ -351,11 +381,8 @@ class MapManager
 			{
 				tileObject.setTileRole( mapTile.role );
 			
-				// We'll add bus stops and people to all 'END' tiles
-				if( mapTile.role == "END" ) {
-
+				if( mapTile.role == "BUSSTOP" ) {
 					this.addBusStopFlair( tileObject, "OSG_Scene", "BusStop_" + i );
-
 					this.addLadyFlair( tileObject, "Object_2", "Lady_" + i );
 				}
 
@@ -396,6 +423,20 @@ class MapManager
 	addBirdFlair( tileObject, meshName, flairName )
 	{
 		let flairMesh = this.flairBirdGltf.scene.getObjectByName( meshName );
+
+        // WORKAROUND:
+        // The bird mesh has transparency, which messes up depending on what
+        // the camera is doing, so get rid of the transparency
+        flairMesh.traverse(
+            function(obj){
+                if( obj.type === 'SkinnedMesh' ) {
+                    console.log("got mesh " + obj.material.transparent);
+                    obj.material.transparent = false;
+                    obj.material.depthWrite = true;
+                }
+            }
+        );
+
 		let model = new THREE.Object3D();
 
 		// Cloning of skinned meshes is not yet supported in the three.js core, so use SkeletonUtils
@@ -626,7 +667,7 @@ class MapManager
 		
 			if( intersects.length > 0 )
 			{
-				console.log( "getTileUnderBot() num tiles under bot is ", intersects.length );
+				//console.log( "getTileUnderBot() num tiles under bot is ", intersects.length );
 				tileBeneath = intersects[0].object.name;
 			}
 		}
@@ -644,12 +685,14 @@ class MapManager
 	{
 		var currentInstruction = this.gameMgr.getInstructionMgr().currentInstruction();
 
-		if( currentInstruction == InstructionManager.instructionConfig.FIRE ) {
+		// Act on special (pause/horn)
+		if( currentInstruction == InstructionManager.instructionConfig.FIRE ||
+			currentInstruction == InstructionManager.instructionConfig.PAUSE ) {
 			// remember, this will be triggered repeatedly throughout the instruction timer
-			// but that's ok as the flair will handle this
+			// - flair must handle this!
 			if( this.currentActiveTile != "" ) {
 				let oldTile = this.idToMapObject[ this.currentActiveTile ];
-				oldTile.doSpecial();
+				oldTile.doSpecial( currentInstruction );
 			}
 		}
 
@@ -667,7 +710,11 @@ class MapManager
 				newTile.activate();
 			}
 
-			this.notifyObservers( role );
+			this.notifyObservers( MapManager.TNotificationType.TITLE_CHANGE, role );
+
+			if( role == "NO_TILE" ) {
+				this.notifyObservers( MapManager.TNotificationType.STATE_CHANGE, MapManager.TState.DEAD );
+			}
 
 			this.currentActiveTile = tileId;
 		}

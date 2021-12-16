@@ -108,9 +108,9 @@ import * as THREE from 'https://cdn.skypack.dev/pin/three@v0.135.0-pjGUcRG9Xt70O
         });   
     }
 
-    doSpecial() {
+    doSpecial( instruction ) {
         this.m_Flair.forEach( function(flair){ 
-            flair.doSpecial();
+            flair.doSpecial( instruction );
         });   
     }
  }
