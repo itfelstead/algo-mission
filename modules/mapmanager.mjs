@@ -83,11 +83,11 @@ class MapManager
 		// set to true when the JSON map/tile config has been loaded
 		this.mapLoaded = false;
 
-		// Flair models
-		this.flairToLoad = 3;
-		this.flairBusStopGltf = null;
-		this.flairLadyGltf = null;
-		this.flairBirdGltf = null;
+		// Flair Assets
+		this.flairAssetsToLoad = 4;
+
+		this.flairGltf = []; 	// "Bird", "Lady", "BusStop"
+		this.flairAudio = []; 	// "BirdFlairSound_Angry", "LadyFlairSound_Angry"
 
 		this.raycaster = new THREE.Raycaster();
 	
@@ -96,6 +96,8 @@ class MapManager
 		this.observers = [];
 
 		this.m_Successes = 0;
+
+		
 	}
 
 	registerObserver(observer)
@@ -179,7 +181,28 @@ class MapManager
 			this.loadModel( "./models/BusStop_Raid/scene.gltf", glTFLoader, this.busStopLoadedCb.bind(this) );
 			this.loadModel( "./models/Mary_XaneMyers/scene.gltf", glTFLoader, this.ladyLoadedCb.bind(this) );
 			this.loadModel( "./models/Pigeon_FourthGreen/scene.gltf", glTFLoader, this.birdLoadedCb.bind(this) );
+			this.loadSound( "./audio/42793__digifishmusic__australian-magpie-gymnorhina-tibicen-squawk-1.wav", "BirdFlairSound_Angry", this.gameMgr.m_AudioListener );
+			this.loadSound( "./audio/323707__reitanna__ooh.wav", "LadyFlairSound_Angry", this.gameMgr.m_AudioListener );
 		}
+	}
+
+	loadSound( soundFile, name, listener ) {
+
+		let audio = new THREE.Audio(listener);
+		audio.name = name;
+		this.flairAudio[name] = audio;
+
+		this.gameMgr.m_Scene.add( audio );
+
+		var loader = new THREE.AudioLoader();
+		var self = this;
+		loader.load( soundFile,
+			function (audioBuffer) {
+				//on load
+				self.flairAudio[name].setBuffer(audioBuffer);
+				self.flairAssetsToLoad--;
+			}
+		);
 	}
 
     loadModel(model, glTFLoader, isCreatedCallback) {
@@ -200,55 +223,55 @@ class MapManager
         );
     }
 
-	busStopLoadedCb( glftObj ) {
+	busStopLoadedCb( gltfObj ) {
 
-		this.flairBusStopGltf = glftObj;
+		this.flairGltf["BusStop"] = gltfObj;
 
 		// Center the scene
-		const box = new THREE.Box3( ).setFromObject( this.flairBusStopGltf.scene );
+		const box = new THREE.Box3( ).setFromObject( this.flairGltf["BusStop"].scene );
 		const c = box.getCenter( new THREE.Vector3( ) );
 		const size = box.getSize( new THREE.Vector3( ) );
-		this.flairBusStopGltf.scene.position.set( -c.x, size.y / 2 - c.y, -c.z );
+		this.flairGltf["BusStop"].scene.position.set( -c.x, size.y / 2 - c.y, -c.z );
 		
-        this.flairToLoad--;
+        this.flairAssetsToLoad--;
     }
 
-	ladyLoadedCb( glftObj ) {
+	ladyLoadedCb( gltfObj ) {
 
 		// .scene has;
 		//  - "Sketchfab_Scene" group (containing "Sketchfab_model" Object 3D)
 		//  - "Sketchfab_model" Object3D (containing materialmerger gles)
 		//  - materialmerger gles Object3D *containing the mesh)
 		//  - Mesh "Object_2"
-		this.flairLadyGltf = glftObj;
+		this.flairGltf["Lady"] = gltfObj;
 
 		// Center the scene
-		const box = new THREE.Box3( ).setFromObject( this.flairLadyGltf.scene );
+		const box = new THREE.Box3( ).setFromObject( this.flairGltf["Lady"].scene );
 		const c = box.getCenter( new THREE.Vector3( ) );
 		const size = box.getSize( new THREE.Vector3( ) );
-		this.flairLadyGltf.scene.position.set( -c.x, size.y / 2 - c.y, -c.z );
+		this.flairGltf["Lady"].scene.position.set( -c.x, size.y / 2 - c.y, -c.z );
 		
-        this.flairToLoad--;
+        this.flairAssetsToLoad--;
     }
 
-	birdLoadedCb( glftObj ) {
+	birdLoadedCb( gltfObj ) {
 
-		this.flairBirdGltf = glftObj;
+		this.flairGltf["Bird"] = gltfObj;
 
 		// Center the scene
-		const box = new THREE.Box3( ).setFromObject( this.flairBirdGltf.scene );
+		const box = new THREE.Box3( ).setFromObject( this.flairGltf["Bird"].scene );
 		const c = box.getCenter( new THREE.Vector3( ) );
 		const size = box.getSize( new THREE.Vector3( ) );
-		this.flairBirdGltf.scene.position.set( -c.x, size.y / 2 - c.y, -c.z );
+		this.flairGltf["Bird"].scene.position.set( -c.x, size.y / 2 - c.y, -c.z );
 
-        this.flairToLoad--;
+        this.flairAssetsToLoad--;
     }
 
 	waitForMapLoad(isCreatedCallback, context) 
 	{
         var waitForAll = setInterval(function () {
           if (context.mapLoaded == true &&
-			  context.flairToLoad == 0 ) {
+			  context.flairAssetsToLoad == 0 ) {
             clearInterval(waitForAll);
             isCreatedCallback(); 
           }
@@ -399,10 +422,10 @@ class MapManager
 
 	addBusStopFlair( tileObject, meshName, flairName )
 	{
-		let flairMesh = this.flairBusStopGltf.scene.getObjectByName( meshName );
+		let flairMesh = this.flairGltf["BusStop"].scene.getObjectByName( meshName );
 		let model = new THREE.Object3D();
 		model.add( flairMesh.clone() );
-		let flair = new TileFlairBusStop( flairName, model, this.gameMgr );
+		let flair = new TileFlairBusStop( flairName, model, this.flairAudio, this.gameMgr );
 		this.positionBusStop( tileObject, model );
 		model.scale.set(0.25,0.25,0.25);
 		tileObject.addFlair( flair );
@@ -410,19 +433,19 @@ class MapManager
 
 	addLadyFlair( tileObject, meshName, flairName )
 	{
-		let flairMesh = this.flairLadyGltf.scene.getObjectByName( meshName );
+		let flairMesh = this.flairGltf["Lady"].scene.getObjectByName( meshName );
 		let model = new THREE.Object3D();
 		model.add( flairMesh.clone() );
-		let flair = new TileFlairLady( flairName, model, this.gameMgr );
+		let flair = new TileFlairLady( flairName, model, this.flairAudio, this.gameMgr );
 		this.positionLady( tileObject, model );
 		model.scale.set(0.15,0.15,0.15);
 		model.rotation.set(-1.6,0,1.8);
 		tileObject.addFlair( flair );
 	}
 
-	addBirdFlair( tileObject, meshName, flairName )
+	addBirdFlair( tileObject, meshName, flairName ) 
 	{
-		let flairMesh = this.flairBirdGltf.scene.getObjectByName( meshName );
+		let flairMesh = this.flairGltf["Bird"].scene.getObjectByName( meshName );
 
         // WORKAROUND:
         // The bird mesh has transparency, which messes up depending on what
@@ -442,7 +465,7 @@ class MapManager
 		// Cloning of skinned meshes is not yet supported in the three.js core, so use SkeletonUtils
 		model.add( SkeletonUtils.clone( flairMesh ) );
 		
-		let flair = new TileFlairBird( flairName, model, this.flairBirdGltf, this.gameMgr );
+		let flair = new TileFlairBird( flairName, model, this.flairAudio, this.flairGltf["Bird"], this.gameMgr );
 		this.positionBird( tileObject, model );
 		model.scale.set(0.5,0.5,0.5);
 		tileObject.addFlair( flair );
@@ -678,46 +701,45 @@ class MapManager
 	activateTileUnderPos( xPos, yPos, zPos )
 	{
 		var tileId = this.getTileUnderPos( xPos, yPos, zPos );
-		this.activateTile( tileId );
+		if( this.currentActiveTile != tileId ) {
+			this.activateTile( tileId );
+		}
 	}
 
-	activateTile( tileId )
-	{
+	handleNewInstruction() {
 		var currentInstruction = this.gameMgr.getInstructionMgr().currentInstruction();
-
 		// Act on special (pause/horn)
 		if( currentInstruction == InstructionManager.instructionConfig.FIRE ||
 			currentInstruction == InstructionManager.instructionConfig.PAUSE ) {
-			// remember, this will be triggered repeatedly throughout the instruction timer
-			// - flair must handle this!
+			// Apply the action to any flair on the current tile
 			if( this.currentActiveTile != "" ) {
 				let oldTile = this.idToMapObject[ this.currentActiveTile ];
 				oldTile.doSpecial( currentInstruction );
 			}
 		}
+	}
 
-		if( this.currentActiveTile != tileId )
-		{
-			var role = this.getTileRole( tileId );
+	activateTile( tileId )
+	{
+		var role = this.getTileRole( tileId );
 
-			if( this.currentActiveTile != "" ) {
-				let oldTile = this.idToMapObject[ this.currentActiveTile ];
-				oldTile.deactivate();
-			}
-
-			if( tileId != "" ) {
-				let newTile = this.idToMapObject[ tileId ];
-				newTile.activate();
-			}
-
-			this.notifyObservers( MapManager.TNotificationType.TITLE_CHANGE, role );
-
-			if( role == "NO_TILE" ) {
-				this.notifyObservers( MapManager.TNotificationType.STATE_CHANGE, MapManager.TState.DEAD );
-			}
-
-			this.currentActiveTile = tileId;
+		if( this.currentActiveTile != "" ) {
+			let oldTile = this.idToMapObject[ this.currentActiveTile ];
+			oldTile.deactivate();
 		}
+
+		if( tileId != "" ) {
+			let newTile = this.idToMapObject[ tileId ];
+			newTile.activate();
+		}
+
+		this.notifyObservers( MapManager.TNotificationType.TILE_CHANGE, role );
+
+		if( role == "NO_TILE" ) {
+			this.notifyObservers( MapManager.TNotificationType.STATE_CHANGE, MapManager.TState.DEAD );
+		}
+
+		this.currentActiveTile = tileId;
 	}
 
 	getTileRole( tileId )

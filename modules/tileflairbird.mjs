@@ -1,5 +1,8 @@
 /**
   The Tile Flair class.
+    Requires;
+        GLTF model: "Bird"
+        Audio: "BirdFlairSound_Angry"
 
   Author: Ian Felstead
 */
@@ -31,7 +34,7 @@ class TileFlairBird {
      * @class The Bus Stop Tile Flair class. Represents an individual tile flair item.
      *
     */
-     constructor( flairName, flairMesh, gltf, gameMgr ) {
+     constructor( flairName, flairMesh, audio, gltf, gameMgr ) {
         this.m_Name = flairName;
         this.m_Gltf = gltf;
         this.m_FlairMesh = flairMesh;
@@ -46,6 +49,8 @@ class TileFlairBird {
         this.m_Mixer = null;
         this.m_AnimAction = null;
         this.m_FlownAway = false;
+
+        this.audio = audio;
 
         this.m_State = TileFlairBird.TBirdState.INITIAL;
     }
@@ -171,6 +176,9 @@ class TileFlairBird {
     
                     this.runAngryBirdAnim( camera );
                     this.flap();
+                    if( "BirdFlairSound_Angry" in this.audio ) {
+                        this.audio["BirdFlairSound_Angry"].play();
+                    }
                     this.m_GameMgr.updateScore( -100 );
                 break;
             case TileFlairBird.TBirdState.GONE:

@@ -1,6 +1,10 @@
 /**
   The Tile Flair class.
 
+    Requires;
+        GLTF model: "Lady"
+        Audio: "LadyFlairSound_Angry"
+
   Author: Ian Felstead
 */
 
@@ -20,13 +24,14 @@ class TileFlairLady {
      * @class The Lady Tile Flair class. Represents an individual tile flair item.
      *
     */
-     constructor( flairName, flairMesh, gameMgr ) {
+     constructor( flairName, flairMesh, audio, gameMgr ) {
         this.m_Name = flairName;
         this.m_FlairMesh = flairMesh;
         this.m_FlairMesh.visible = true;
         this.m_FlairMesh.name = this.m_Name;
         this.m_GameMgr = gameMgr;
         this.m_BoardingTriggered = false;
+        this.audio = audio;
     }
 
     getMesh() {
@@ -56,11 +61,16 @@ class TileFlairLady {
     
             this.m_GameMgr.m_MapManager.registerFlairSuccess( 1000, true );
         }
-       // else if( instruction == InstructionManager.instructionConfig.FIRE ) {
-            // eek -100 points
-       // }
-
-
+        else if( instruction == InstructionManager.instructionConfig.FIRE ) {
+            
+            if( "LadyFlairSound_Angry" in this.audio ) {
+                let self = this;
+                setTimeout( function() { 
+                    self.audio["LadyFlairSound_Angry"].play();
+                    self.m_GameMgr.m_MapManager.registerFlairFailure( -100, false );
+                    }, 500); //this.shockLady.bind(this), 500 );
+            }
+        }
     }
 
     update( timeElapsed ) {

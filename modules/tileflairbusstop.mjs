@@ -1,5 +1,8 @@
 /**
   The Tile Flair class.
+    Requires;
+        GLTF model: "BusStop"
+        Audio: n/a
 
   Author: Ian Felstead
 */
@@ -20,11 +23,12 @@ class TileFlairBusStop {
      * @class The Bus Stop Tile Flair class. Represents an individual tile flair item.
      *
     */
-     constructor( flairName, flairMesh, gameMgr ) {
+     constructor( flairName, flairMesh, audio, gameMgr ) {
         this.m_Name = flairName;
         this.m_FlairMesh = flairMesh;
         this.m_FlairMesh.name = this.m_Name;
         this.m_GameMgr = gameMgr;
+        this.audio = audio;
     }
 
     getMesh() {

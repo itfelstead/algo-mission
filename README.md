@@ -74,3 +74,6 @@ https://creativecommons.org/publicdomain/zero/1.0/
 
 Australian Magpie - (42793__digifishmusic__australian-magpie-gymnorhina-tibicen-squawk-1.wav) Gymnorhina tibicen - Squawk 1.wav by digifishmusic
 https://creativecommons.org/licenses/by/3.0/
+
+Ooh! (323707__reitanna__ooh.wav) "a pleasantly surprised "ooh!" by Reitanna
+https://creativecommons.org/publicdomain/zero/1.0/

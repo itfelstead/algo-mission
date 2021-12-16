@@ -222,7 +222,8 @@ class AlgoMission {
             case AlgoMission.TAppState.RUNNING:
 
                 if (!this.m_Bot.isBusy() && this.m_InstructionMgr.nextInstruction() != undefined) {
-                    this.m_Bot.prepareForNewInstruction();
+                    this.m_Bot.prepareForNewInstruction();      // e.g. movement instructions affect bot location
+                    this.m_MapManager.handleNewInstruction();   // e.g. fire and pause instructions may affect tile flair
                 }
 
                 // camera must follow bot
@@ -402,6 +403,8 @@ class AlgoMission {
 
         this.addCamera();
 
+        this.addAudio(this.m_Camera);
+
         this.addSky();
 
         this.addAmbientLight();
@@ -413,8 +416,6 @@ class AlgoMission {
         this.addInstructionManager(this.m_MapManager);
 
         this.addControlPanel(this.m_InstructionMgr, this.m_TextureLoader);
-
-        this.addAudio(this.m_Camera);
 
         this.m_BotLoaded = false;
         this.addBot(this.m_InstructionMgr, this.m_MapManager, this.botCreatedCb.bind(this));
@@ -1193,6 +1194,7 @@ class AlgoMission {
                     if (!this.m_InstructionMgr.isRunning() && this.m_InstructionMgr.numInstructions() > 0) {
                         this.m_InstructionMgr.startInstructions();
                         this.m_Bot.prepareForNewInstruction();
+                        this.m_MapManager.handleNewInstruction();
                     }
                 }
                 else if (instructionClicked == InstructionManager.instructionConfig.GRID) {

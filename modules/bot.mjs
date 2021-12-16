@@ -517,7 +517,7 @@ class Bot {
   /**
   * activateTileUnderBot()
   *
-  * Alter the map to the presence of the bot.
+  * Alert the map manager to the presence of the bot.
   * This may trigger events from the map manager
   * according to the type of tile the bot enters.
   *
