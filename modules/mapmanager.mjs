@@ -24,7 +24,7 @@ import { GLTFLoader } from 'https://cdn.skypack.dev/three@0.135.0/examples/jsm/l
  */
 var ALGO = ALGO || {};
 
-// Instruction Manager can be a map tile observer
+// Instruction Manager can be a map tile observer 
 import { InstructionManager } from './instructionmanager.mjs';
 // Bot can be a map tile observer
 import { Bot } from './bot.mjs';
@@ -73,6 +73,10 @@ class MapManager
 	
 		this.loadedTextures = {};   // texture path/name to loaded texture;
 	
+		this.mapLoaded = false;
+		this.texturesLoaded = false;
+		this.thumbnailsGenerated = false;
+
 		// Positioning:
 		// 	All tile positions are relative to the start tile (at 0,0)
 		//      (on which the bus will be placed).
@@ -84,7 +88,7 @@ class MapManager
 		this.mapLoaded = false;
 
 		// Flair Assets
-		this.flairAssetsToLoad = 4;
+		this.flairAssetsToLoad = 5;
 
 		this.flairGltf = []; 	// "Bird", "Lady", "BusStop"
 		this.flairAudio = []; 	// "BirdFlairSound_Angry", "LadyFlairSound_Angry"
@@ -96,8 +100,6 @@ class MapManager
 		this.observers = [];
 
 		this.m_Successes = 0;
-
-		
 	}
 
 	registerObserver(observer)
@@ -162,17 +164,33 @@ class MapManager
 				function(xhr) { console.error(xhr); }
 		);
 
-		var waitForLoad = setInterval( function(){
+		// wait until maps are loaded, then load textures and flair...
+		var waitForMapLoad = setInterval( function(){
 			if( instance.mapLoaded == true )
 			{
-				instance.loadTextures( textureLoader, callbackFn  );
-				clearInterval( waitForLoad );
+				instance.loadTextures( textureLoader, 
+					function() {
+						instance.texturesLoaded = true;
+					} );
+
+				instance.loadFlairModels( glTFLoader );
+
+				clearInterval( waitForMapLoad );
 			}
 		}, 100 ); 
 
-        this.loadFlairModels( glTFLoader );
+		// if the textures are loaded, then generate thumbnails
+		var waitForTextureLoad = setInterval( 
+			function(){
+				if( instance.texturesLoaded == true ) {
+					instance.generateThumbnails();
+					clearInterval( waitForTextureLoad );
+				}
+			}
+	   	);
 
-        this.waitForMapLoad( callbackFn, this );
+		// wait until everything is loaded before calling caller's callback
+        this.waitForMapFullyLoaded( callbackFn, this );
 	}
 
 	loadFlairModels( glTFLoader )
@@ -267,16 +285,104 @@ class MapManager
         this.flairAssetsToLoad--;
     }
 
-	waitForMapLoad(isCreatedCallback, context) 
+	waitForMapFullyLoaded(isCreatedCallback, context) 
 	{
         var waitForAll = setInterval(function () {
+
           if (context.mapLoaded == true &&
-			  context.flairAssetsToLoad == 0 ) {
-            clearInterval(waitForAll);
-            isCreatedCallback(); 
+			  context.texturesLoaded == true &&
+			  context.flairAssetsToLoad <= 0 &&
+			  context.thumbnailsGenerated == true) {
+
+				if( context.flairAssetsToLoad < 0 ) {
+					console.log("WARNING: Unexpected number of flair loaded.");
+				}
+
+				clearInterval(waitForAll);
+				isCreatedCallback(); 
           }
         }, 100);
     }
+
+	calculateMapSize( tileLayout ) {
+		let lowestX = 0;
+		let highestX = 0;
+		let lowestZ = 0;
+		let highestZ = 0;
+
+		for( var i =0; i < tileLayout.length; ++i ) {
+			let row = tileLayout[i];
+			lowestX = Math.min( row.x, lowestX );
+			lowestZ = Math.min( row.z, lowestZ );
+			highestX = Math.max( row.x, highestX );
+			highestZ = Math.max( row.z, highestZ );
+		}
+
+		return [lowestX, lowestZ, highestX, highestZ];
+	}
+
+	generateThumbnails() {
+		const thumbnailWidth = 200;
+		const thumbnailHeight = 200;
+		const maxTileWidth = 50; 	// prevent small maps looking too zoomed in
+		const maxTileHeight = 50;
+
+		for( var mapIdx = 0; mapIdx < this.jsonMaps.length; ++mapIdx ) {
+
+			// Create a canvas fo hold the final map thumbnail image
+			let thumbCanvas = document.createElement("canvas");
+			let thumbContext = thumbCanvas.getContext("2d");
+			thumbCanvas.width = thumbnailWidth;
+			thumbCanvas.height = thumbnailHeight;
+
+			var mapDef = this.jsonMaps[ mapIdx ];
+			var tileLayout = mapDef.tileLayout
+			const [lowestX, lowestZ, highestX, highestZ] = this.calculateMapSize( tileLayout );
+
+			let xSpan = Math.abs(highestX-lowestX) + 1;
+			let zSpan = Math.abs(highestZ-lowestZ) + 1;
+			let scaledTileWidth = Math.min(thumbnailWidth / xSpan, maxTileWidth);
+			let scaledTileHeight = Math.min(thumbnailHeight / xSpan, maxTileHeight);
+
+			let xZeroOffset = 0 - lowestX;
+			let zZeroOffset = 0 - lowestZ;
+
+			// thumbnail will be left justified without these...
+			let centerOffsetX = (thumbnailWidth - (xSpan * scaledTileWidth)) / 2; 
+			let centerOffsetZ = (thumbnailWidth - (zSpan * scaledTileHeight)) / 2; 
+
+			// Calculate the size of each tile, and required offsets (as all tiles are positioned in relation to tile 0,0)
+			for( var rowIdx = 0; rowIdx < tileLayout.length; rowIdx++ ) {
+				var mapTile = tileLayout[rowIdx];
+
+				// Get pre-loaded texture
+				var texture = null;
+				var flippedTexture = null;
+
+				if( mapTile.id )
+				{
+					var tileCfg = this.tileConfig[mapTile.id];
+					if( tileCfg &&
+						tileCfg.hasOwnProperty('loadedTexture') && tileCfg.hasOwnProperty('loadedTextureFlipped') )
+					{
+						texture = tileCfg.loadedTexture;
+						flippedTexture = tileCfg.loadedTextureFlipped;
+					}
+				}
+
+				var image = texture.image;
+	
+				var destX = ((mapTile.x + xZeroOffset) * scaledTileWidth) + centerOffsetX;
+				var destZ = ((mapTile.z + zZeroOffset) * scaledTileHeight) + centerOffsetZ;
+				thumbContext.drawImage( image, destX ,destZ, scaledTileWidth, scaledTileHeight);
+			}
+
+			mapDef.thumbnailTexture = new THREE.CanvasTexture(thumbCanvas);
+			mapDef.thumbnailTexture.minFilter = THREE.LinearFilter;
+		}
+ 
+		this.thumbnailsGenerated = true;
+	}
 
 	/**
 	* getMapInfo()
@@ -803,7 +909,6 @@ class MapManager
 		xhr.send();
 	}
 
-
 	/**
 	*  loadTextures
 	*
@@ -861,7 +966,12 @@ class MapManager
 			}
 		}
 
-		function createMyInterval(f,dynamicParameter,interval) { return setInterval(function() { f(dynamicParameter); }, interval); }
+		function createMyInterval(f,dynamicParameter,interval) { 
+			return setInterval( function() { 
+					f(dynamicParameter);
+				}, interval); 
+		}
+
 		var waitForTextures = createMyInterval(
 			function(tileConfig) {
 				var allDone = true;

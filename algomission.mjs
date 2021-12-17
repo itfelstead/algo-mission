@@ -277,7 +277,8 @@ class AlgoMission {
 
         switch (this.m_State) {
             case AlgoMission.TAppState.INITIAL:
-                if (this.m_Bot.mesh != null && typeof (this.m_Bot.mesh) != "undefined") {
+                if (this.m_Bot.mesh != null && typeof (this.m_Bot.mesh) != "undefined" &&
+                    this.m_MapLoaded == true ) {
                     newState = AlgoMission.TAppState.SELECTMAP;
                 }
                 break;
@@ -366,6 +367,7 @@ class AlgoMission {
             case AlgoMission.TAppState.SELECTMAP:
                 this.m_SelectedMap = -1;
                 this.displayMapScreen();
+  this.displayMapScreen3d(); // TODO - JUST FOR TEST
                 break;
         }
     }
@@ -592,7 +594,10 @@ class AlgoMission {
         this.m_MapLoaded = false;
         this.m_MapManager = new MapManager( this );
         var self = this;
-        this.m_MapManager.load(textureLoader, this.m_GLTFLoader, function () { self.m_MapLoaded = true; });
+        this.m_MapManager.load(textureLoader, this.m_GLTFLoader, 
+                function () { 
+                    self.m_MapLoaded = true;
+                });
     }
 
     addInstructionManager(mapManager) {
@@ -967,6 +972,52 @@ class AlgoMission {
         })();
     }
 
+    displayMapScreen3d() {
+
+        let selectMapScreenSize = 100;
+
+        let numMapsperPage = 4;
+        let mapSpacing = selectMapScreenSize * 0.05; // 5% spacing
+
+        let xOffset = selectMapScreenSize / 2;
+        let yOffset = selectMapScreenSize / 2;
+
+        let spaceForSpacing = ((numMapsperPage+1) * mapSpacing);
+        let thumbnailWidth = (selectMapScreenSize-spaceForSpacing) / numMapsperPage;
+        let thumbnailHeight = thumbnailWidth;
+
+        let distanceFromCamera = this.distanceToFitObjectToView(1, 90, selectMapScreenSize, selectMapScreenSize/2 );
+
+        let screenOrder = 0;
+        for( var mapIdx = 0; mapIdx < this.m_MapManager.jsonMaps.length; ++mapIdx ) {
+			var mapDef = this.m_MapManager.jsonMaps[ mapIdx ];
+            if( !mapDef.hasOwnProperty('thumbnailTexture') ) {
+                console.log("WARNING: Map " + mapIdx + " lacks a thumbnail");
+                continue;
+            }
+
+            screenOrder = ((screenOrder+1) % numMapsperPage);
+
+            var thumbnailTexture = mapDef.thumbnailTexture;
+
+			let planeGeo = new THREE.PlaneGeometry(thumbnailWidth, thumbnailHeight);
+			let material = new THREE.MeshBasicMaterial( { side:THREE.DoubleSide, map:thumbnailTexture, transparent:false, opacity:0.5 } );
+			let mesh = new THREE.Mesh(planeGeo, material);
+
+            let mapX = (screenOrder * thumbnailWidth) + (screenOrder * mapSpacing);
+            mapX -= xOffset;    // center
+            let mapY = 0;
+            //mapY -= yOffset;
+            mesh.position.set( mapX, mapY, -distanceFromCamera );
+            console.log( "putting map " + mapIdx + " at " + mapX + ", " + mapY);
+            mesh.name = "MapThumbnail_" + mapIdx;
+
+			this.m_Camera.add( mesh );
+        }
+    }
+
+ 
+
     displayMapScreen() {
         var mapInfo = this.m_MapManager.getMapInfo();
         var mapText =
@@ -1256,6 +1307,59 @@ class AlgoMission {
     addAxisHelper() {
         this.m_Scene.add(new THREE.AxisHelper(50));
     }
+
+
+
+    // CODE FROM https://discourse.threejs.org/t/functions-to-calculate-the-visible-width-height-at-a-given-z-depth-from-a-perspective-camera/269/27
+ /**
+ * Convert vertical field of view to horizontal field of view, given an aspect
+ * ratio. See https://arstechnica.com/civis/viewtopic.php?f=6&t=37447
+ *
+ * @param vfov - The vertical field of view.
+ * @param aspect - The aspect ratio, which is generally width/height of the viewport.
+ * @returns - The horizontal field of view.
+ */
+  vfovToHfov(vfov, aspect) {
+    const {tan, atan} = Math
+    return atan(aspect * tan(vfov / 2)) * 2
+  }
+  
+  /**
+   * Get the distance from the camera to fit an object in view by either its
+   * horizontal or its vertical dimension.
+   *
+   * @param size - This should be the width or height of the object to fit.
+   * @param fov - If `size` is the object's width, `fov` should be the horizontal
+   * field of view of the view camera. If `size` is the object's height, then
+   * `fov` should be the view camera's vertical field of view.
+   * @returns - The distance from the camera so that the object will fit from
+   * edge to edge of the viewport.
+   */
+  _distanceToFitObjectInView(size, fov) {
+    const {tan} = Math
+    return size / (2 * tan(fov / 2))
+  }
+  
+  distanceToFitObjectToView(
+    cameraAspect,
+    cameraVFov,
+    objWidth,
+    objHeight
+  ) {
+    const objAspect = objWidth / objHeight
+    const cameraHFov = this.vfovToHfov(cameraVFov, cameraAspect)
+  
+    let distance = 0
+  
+    if (objAspect > cameraAspect) {
+      distance = this._distanceToFitObjectInView(objHeight, cameraVFov)
+    } else if (objAspect <= cameraAspect) {
+      distance = this._distanceToFitObjectInView(objWidth, cameraHFov)
+    }
+  
+    return distance
+  }
+
 }
 
 export { AlgoMission };
