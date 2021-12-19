@@ -504,6 +504,7 @@ class MapManager
 			var tileObject = new MapTile( "Tile_" + i, stdTileGeo, materials, this.gameMgr );
 			let tileMesh = tileObject.getTileMesh();
 			tileObject.setTileType( tileId );
+			tileObject.setRelativePosition( mapTile.x, mapTile.z );
 			this.translateTilePosition( tileObject, mapTile.x, mapTile.z );
 
 			if( mapTile.hasOwnProperty('role') )
@@ -576,8 +577,6 @@ class MapManager
 		model.scale.set(0.5,0.5,0.5);
 		tileObject.addFlair( flair );
 	}
-
-
 
 	positionBusStop( tileObject, mesh )
 	{
@@ -814,15 +813,50 @@ class MapManager
 
 	handleNewInstruction() {
 		var currentInstruction = this.gameMgr.getInstructionMgr().currentInstruction();
-		// Act on special (pause/horn)
-		if( currentInstruction == InstructionManager.instructionConfig.FIRE ||
-			currentInstruction == InstructionManager.instructionConfig.PAUSE ) {
+
+		if( currentInstruction == InstructionManager.instructionConfig.PAUSE ) {
 			// Apply the action to any flair on the current tile
 			if( this.currentActiveTile != "" ) {
 				let oldTile = this.idToMapObject[ this.currentActiveTile ];
 				oldTile.doSpecial( currentInstruction );
 			}
 		}
+		else if( currentInstruction == InstructionManager.instructionConfig.FIRE ) {
+			// Apply the action to any flair on tiles adjacent to the current tile
+			if( this.currentActiveTile != "" ) {
+				let adjacentTileIds = this.getAdjacentTileIds( this.currentActiveTile );
+				if( adjacentTileIds ) {
+					for( var i=0; i < adjacentTileIds.length; ++i ) {
+						let adjTileId = adjacentTileIds[i];
+						let adjTile = this.idToMapObject[ adjTileId ];
+						adjTile.doSpecial( currentInstruction );
+					}
+				}
+			}
+		}
+	}
+
+	getAdjacentTileIds( middleTileId )
+	{
+		let adjTileIds = [];
+
+		let middleTile = this.idToMapObject[ middleTileId ];
+		let middleX = middleTile.getRelativePositionX();
+		let middleZ = middleTile.getRelativePositionZ();
+
+		for( var tileId in this.idToMapObject ) {
+
+			// We include the middle tile in the 'adjacent' list
+			let tileToTest = this.idToMapObject[ tileId ];
+
+			if( (Math.abs(middleX - tileToTest.getRelativePositionX()) < 2) &&
+			    (Math.abs(middleZ - tileToTest.getRelativePositionZ()) < 2) )
+			{
+				adjTileIds.push(tileId);
+			}
+		}
+
+		return adjTileIds;
 	}
 
 	activateTile( tileId )

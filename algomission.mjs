@@ -223,7 +223,6 @@ class AlgoMission {
 
                 if (!this.m_Bot.isBusy() && this.m_InstructionMgr.nextInstruction() != undefined) {
                     this.m_Bot.prepareForNewInstruction();      // e.g. movement instructions affect bot location
-                    this.m_MapManager.handleNewInstruction();   // e.g. fire and pause instructions may affect tile flair
                 }
 
                 // camera must follow bot
@@ -1245,7 +1244,6 @@ class AlgoMission {
                     if (!this.m_InstructionMgr.isRunning() && this.m_InstructionMgr.numInstructions() > 0) {
                         this.m_InstructionMgr.startInstructions();
                         this.m_Bot.prepareForNewInstruction();
-                        this.m_MapManager.handleNewInstruction();
                     }
                 }
                 else if (instructionClicked == InstructionManager.instructionConfig.GRID) {

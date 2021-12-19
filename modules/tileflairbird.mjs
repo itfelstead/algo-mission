@@ -122,15 +122,15 @@ class TileFlairBird {
                     if( this.m_BotPresentOnTile ) {
                         newState = TileFlairBird.TBirdState.HELLO_BOT;
                     }
-                    break;
-                case TileFlairBird.TBirdState.HELLO_BOT:
-                    if( !this.m_BotPresentOnTile ) {
-                        newState = TileFlairBird.TBirdState.GOODBYE_BOT;
-                    }
                     else {
                         if( this.m_SpecialTriggered == true && !this.m_DoneSpecial ) {
                             newState = TileFlairBird.TBirdState.DOING_SPECIAL;
                         } 
+                    }
+                    break;
+                case TileFlairBird.TBirdState.HELLO_BOT:
+                    if( !this.m_BotPresentOnTile ) {
+                        newState = TileFlairBird.TBirdState.GOODBYE_BOT;
                     }
                     break;
                 case TileFlairBird.TBirdState.GOODBYE_BOT:
@@ -168,18 +168,20 @@ class TileFlairBird {
                 // NOOP
                 break;
             case TileFlairBird.TBirdState.HELLO_BOT:
-                // NOOP
-                break;
-            case TileFlairBird.TBirdState.GOODBYE_BOT:
+                if( this.m_DoneSpecial == false ) {
                     // if we aren't gone, then the bot has tried to run us over!
                     let camera = this.m_GameMgr.getCamera();
-    
+        
                     this.runAngryBirdAnim( camera );
                     this.flap();
                     if( "BirdFlairSound_Angry" in this.audio ) {
                         this.audio["BirdFlairSound_Angry"].play();
                     }
                     this.m_GameMgr.updateScore( -100 );
+                }
+                break;
+            case TileFlairBird.TBirdState.GOODBYE_BOT:
+                // NOOP - we are either dead, or long gone
                 break;
             case TileFlairBird.TBirdState.GONE:
                 break;

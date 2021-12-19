@@ -467,6 +467,8 @@ class Bot {
         break;
       case Bot.TState.EXECUTING:
         this.instructionTimer = 0;
+        // Trigger any affect on the map
+        this.gameMgr.getMapManager().handleNewInstruction();   // e.g. fire and pause instructions may affect tile flair
         break;
 
       case Bot.TState.DYING:
