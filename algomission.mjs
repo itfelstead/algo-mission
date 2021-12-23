@@ -55,7 +55,7 @@ class AlgoMission {
         // Bot
         this.m_Bot = null;
         this.m_BotLoaded = false;
-
+ 
         this.m_MapLoaded = false;
 
         this.m_SkyLoaded = false;
@@ -101,6 +101,8 @@ class AlgoMission {
         this.m_TotalScore = 0;
         this.m_ScoreMesh = null;
         this.m_ScoreLoaded = false;
+
+        this.m_MapSelectionObjects = [];
     }
 
     updateScore( delta ) {
@@ -364,9 +366,9 @@ class AlgoMission {
             case AlgoMission.TAppState.RETRY:
                 break;
             case AlgoMission.TAppState.SELECTMAP:
+                let oldMap = this.m_SelectedMap;
                 this.m_SelectedMap = -1;
-                this.displayMapScreen();
-  this.displayMapScreen3d(); // TODO - JUST FOR TEST
+                this.displayMapScreen( oldMap );
                 break;
         }
     }
@@ -971,31 +973,78 @@ class AlgoMission {
         })();
     }
 
-    displayMapScreen3d() {
+    getScreenWidthAtCameraDistance( distance ) {
+        var vFOV = THREE.MathUtils.degToRad( this.m_Camera.fov ); // convert vertical fov to radians
+        var height = 2 * Math.tan( vFOV / 2 ) * distance; 
+        var visibleWidth = height * this.m_Camera.aspect;
+        return visibleWidth;
+    }
 
-        let selectMapScreenSize = 100;
+    displayMapScreen( previousMap ) {
 
-        let numMapsperPage = 4;
+        // remove any old map meshes
+        this.removeMapSelectionMeshes();
+
+        let distanceFromCamera = 10;
+        let selectMapScreenSize = this.getScreenWidthAtCameraDistance( distanceFromCamera );
+
+        let numMapsPerPage = 3;
+        if( this.m_MapManager.jsonMaps.length < numMapsPerPage ) {
+            numMapsPerPage = this.m_MapManager.jsonMaps.length;
+        }
+
         let mapSpacing = selectMapScreenSize * 0.05; // 5% spacing
 
-        let xOffset = selectMapScreenSize / 2;
-        let yOffset = selectMapScreenSize / 2;
+        let spaceForSpacing = ((numMapsPerPage+1) * mapSpacing);
 
-        let spaceForSpacing = ((numMapsperPage+1) * mapSpacing);
-        let thumbnailWidth = (selectMapScreenSize-spaceForSpacing) / numMapsperPage;
-        let thumbnailHeight = thumbnailWidth;
+        let thumbnailWidth = (selectMapScreenSize-spaceForSpacing) / numMapsPerPage;
 
-        let distanceFromCamera = this.distanceToFitObjectToView(1, 90, selectMapScreenSize, selectMapScreenSize/2 );
+        // camera coordinates, 0,0 is center, so need to offset
+        let xOffset = -(selectMapScreenSize/2) + mapSpacing;   // .. as camera 0,0 is middle of screen
+        xOffset += (thumbnailWidth/2);                         // .. as coordinates are in middle of tile
+        let yOffset = 0;                                       // fine, keep it in the middle
 
+        let currentMapOffset = Math.max(previousMap, 0);
+ 
+        this.displayMapSet( numMapsPerPage, currentMapOffset, xOffset, thumbnailWidth, mapSpacing, distanceFromCamera );
+    }
+
+    removeMapScreen() {
+        this.removeMapSelectionMeshes();
+
+        // Until we sort the instruction panel / control panel too;
+            var fadeStep = 0.1;
+            var fadePauseMs = 100;
+            var fade = 1.0;
+            var self = this;
+            (function fadeDivs() {
+                self.m_ControlPanel.setWindowOpacity(1.0 - fade);
+                self.m_InstructionMgr.setWindowOpacity(1.0 - fade);
+    
+                fade -= fadeStep;
+                if (fade > 0) {
+                    setTimeout(fadeDivs, fadePauseMs);
+                }
+            })();
+    }
+
+    removeMapSelectionMeshes( ) {
+        for( var i = 0; i < this.m_MapSelectionObjects.length; i++ ) {
+            this.m_Camera.remove( this.m_MapSelectionObjects[i] );
+        }
+    }
+
+    displayMapSet( numToShow, firstId, xOffset, thumbnailWidth, mapSpacing, distanceFromCamera ) {
         let screenOrder = 0;
-        for( var mapIdx = 0; mapIdx < this.m_MapManager.jsonMaps.length; ++mapIdx ) {
-			var mapDef = this.m_MapManager.jsonMaps[ mapIdx ];
+        let thumbnailHeight = thumbnailWidth;
+        var mapIdx = firstId;
+        for( ; mapIdx < (numToShow+firstId); ++mapIdx ) {
+
+            var mapDef = this.m_MapManager.jsonMaps[ mapIdx ];
             if( !mapDef.hasOwnProperty('thumbnailTexture') ) {
                 console.log("WARNING: Map " + mapIdx + " lacks a thumbnail");
                 continue;
             }
-
-            screenOrder = ((screenOrder+1) % numMapsperPage);
 
             var thumbnailTexture = mapDef.thumbnailTexture;
 
@@ -1004,145 +1053,26 @@ class AlgoMission {
 			let mesh = new THREE.Mesh(planeGeo, material);
 
             let mapX = (screenOrder * thumbnailWidth) + (screenOrder * mapSpacing);
-            mapX -= xOffset;    // center
+            mapX += xOffset;    // center
             let mapY = 0;
-            //mapY -= yOffset;
             mesh.position.set( mapX, mapY, -distanceFromCamera );
-            console.log( "putting map " + mapIdx + " at " + mapX + ", " + mapY);
-            mesh.name = "MapThumbnail_" + mapIdx;
+     
+            mesh.name = mapIdx;
+            //mesh.id = "MapThumbnail_" + mapIdx;
 
+            this.m_MapSelectionObjects.push(mesh);
 			this.m_Camera.add( mesh );
+
+            screenOrder++;
         }
-    }
 
- 
-
-    displayMapScreen() {
-        var mapInfo = this.m_MapManager.getMapInfo();
-        var mapText =
-            "<table id='missionTable' width='100%' border='0' style='display:block;'>" +
-            "<thead style='display:block;position: sticky;top:0;; background-color: grey;display:block;'>" +
-            "<tr>" +
-            "<td width='100%'>" +
-            "<b>Hello bus driver. Please select a mission to try!<b>" +
-            "</td>" +
-            "</tr>" +
-            "</thead>" +
-            "<tbody>";
-
-        for (var i = 0; i < mapInfo.length; ++i) {
-            var difficulty = "beginner";
-            switch (mapInfo[i].difficulty) {
-                case 1:
-                    difficulty = "beginner";
-                    break;
-                case 2:
-                    difficulty = "normal";
-                    break;
-                case 3:
-                    difficulty = "expert";
-                    break;
-                default:
-                    difficulty = "beginner";
-            }
-            mapText += "<tr>";
-            mapText += "<td id='" + mapInfo[i].mapid + "' width='30%'>" + "Mission: <b>" + mapInfo[i].name + "<b></td>";
-            mapText += "<td width='70%'><i>" + mapInfo[i].instructions + "</i> (" + difficulty + ")</td>";
-            mapText += "</tr>";
+        if( mapIdx < this.m_MapManager.jsonMaps.length ) {
+            // TODO display 'next maps' arrow
         }
-        mapText += "</tbody>";
 
-        var css = 'table tr:hover{ background-color: #00ff00 }';
-        var style = document.createElement('style');
-        if (style.styleSheet) {
-            style.styleSheet.cssText = css;
-        } else {
-            style.appendChild(document.createTextNode(css));
+        if( firstId > 0 ) {
+            // TODO display 'prev maps' arrow
         }
-        document.getElementsByTagName('head')[0].appendChild(style);
-
-        var loadDiv = document.createElement('div');
-        loadDiv.id = "mapScreen";
-        loadDiv.style.cssText =
-            "opacity: 0;" +
-            "background-image: url('./images/retry.jpg');" +
-            "background-repeat: no-repeat;" +
-            "background-size: cover;" +
-            "width: 60%;" +
-            "height: 80%;" +
-            "top: 50%;" +
-            "left: 50%;" +
-            "transform: translate(-50%, -50%); " + 	// makes sure we're dead center
-            "text-align: left;" +
-            "color: White;" +
-            "overflow: auto;" +
-            "position: fixed;" +
-            "font: 12px arial,serif;" +
-            "display:inline-block;" +
-            "}";
-
-        loadDiv.innerHTML = mapText;
-
-        document.body.appendChild(loadDiv);
-
-        this.addMissionSelectRowHandlers();
-
-        var fadeStep = 0.05;
-        var fadePauseMs = 100;
-        var fade = 0.0;
-
-        (function fadeDivs() {
-            document.getElementById("mapScreen").style.opacity = fade;
-
-            fade += fadeStep;
-            if (fade < 1.0) {
-                setTimeout(fadeDivs, fadePauseMs);
-            }
-        })();
-    }
-
-    addMissionSelectRowHandlers() {
-        var table = document.getElementById("missionTable");
-        var rows = table.getElementsByTagName("tr");
-        var self = this;
-        for (var i = 0; i < rows.length; i++) {
-            var currentRow = table.rows[i];
-
-            var createClickHandler =
-                function (row) {
-                    return function () {
-                        var cell = row.getElementsByTagName("td")[0];
-                        if (cell.id != "") {
-                            self.m_SelectedMap = cell.id;
-                        }
-                        console.log("selected map:" + self.m_SelectedMap);
-                    };
-                };
-
-            currentRow.onclick = createClickHandler(currentRow);
-        }
-    }
-
-    removeMapScreen() {
-        var fadeStep = 0.1;
-        var fadePauseMs = 100;
-        var fade = 1.0;
-        var self = this;
-        (function fadeDivs() {
-            document.getElementById("mapScreen").style.opacity = fade;
-
-            self.m_ControlPanel.setWindowOpacity(1.0 - fade);
-            self.m_InstructionMgr.setWindowOpacity(1.0 - fade);
-
-            fade -= fadeStep;
-            if (fade > 0) {
-                setTimeout(fadeDivs, fadePauseMs);
-            }
-            else {
-                document.getElementById("mapScreen").remove();
-                console.log("removing map screen");
-            }
-        })();
     }
 
     setupCollisionDetection() {
@@ -1209,12 +1139,23 @@ class AlgoMission {
     }
 
     onDocumentMouseDown(event) {
+
         event.preventDefault();
 
         // If we're on the winner screen, then a click just means
         // select next map - don't detect any other button presses
         if( this.m_State == AlgoMission.TAppState.WIN ) {
             this.m_SelectMap = true;
+            return;
+        }
+
+        if( this.m_State == AlgoMission.TAppState.SELECTMAP ) {
+
+            let mapSelected = this.detectMapSelection(event.clientX, event.clientY, this.m_Raycaster );
+            if( mapSelected > -1 ) {
+                this.m_SelectedMap = mapSelected;
+            }
+
             return;
         }
 
@@ -1258,6 +1199,39 @@ class AlgoMission {
 
         this.m_InstructionMgr.updateWindow();
     }
+
+	/**
+	* detectMapSelection()
+	*
+	*
+	*/
+	detectMapSelection(xPos, yPos, raycaster) {
+        let selection = -1;
+
+        if (typeof (raycaster) == "undefined") {
+			return selection;
+		}
+
+        var mouse = new THREE.Vector2(); // TODO: create once
+    
+        mouse.x = ( xPos / this.m_Renderer.domElement.clientWidth ) * 2 - 1;
+        mouse.y = - ( yPos / this.m_Renderer.domElement.clientHeight ) * 2 + 1;
+        
+        raycaster.setFromCamera( mouse, this.m_Camera );
+        
+        //var mapSelectionObjects = []
+        //TODO - lookup and add all Map selection objects to mapSelectionObjects
+        // rather than store in member var
+
+        var intersects = raycaster.intersectObjects( this.m_MapSelectionObjects );
+
+        if( intersects.length > 0 ) {
+            selection = intersects[0].object.name;
+        }
+
+		return selection;
+	}
+
 
     toggleGridHelper() {
         if (this.m_GridHelperObject == null || this.m_Scene.getObjectByName("GridHelper") == null) {
@@ -1305,59 +1279,6 @@ class AlgoMission {
     addAxisHelper() {
         this.m_Scene.add(new THREE.AxisHelper(50));
     }
-
-
-
-    // CODE FROM https://discourse.threejs.org/t/functions-to-calculate-the-visible-width-height-at-a-given-z-depth-from-a-perspective-camera/269/27
- /**
- * Convert vertical field of view to horizontal field of view, given an aspect
- * ratio. See https://arstechnica.com/civis/viewtopic.php?f=6&t=37447
- *
- * @param vfov - The vertical field of view.
- * @param aspect - The aspect ratio, which is generally width/height of the viewport.
- * @returns - The horizontal field of view.
- */
-  vfovToHfov(vfov, aspect) {
-    const {tan, atan} = Math
-    return atan(aspect * tan(vfov / 2)) * 2
-  }
-  
-  /**
-   * Get the distance from the camera to fit an object in view by either its
-   * horizontal or its vertical dimension.
-   *
-   * @param size - This should be the width or height of the object to fit.
-   * @param fov - If `size` is the object's width, `fov` should be the horizontal
-   * field of view of the view camera. If `size` is the object's height, then
-   * `fov` should be the view camera's vertical field of view.
-   * @returns - The distance from the camera so that the object will fit from
-   * edge to edge of the viewport.
-   */
-  _distanceToFitObjectInView(size, fov) {
-    const {tan} = Math
-    return size / (2 * tan(fov / 2))
-  }
-  
-  distanceToFitObjectToView(
-    cameraAspect,
-    cameraVFov,
-    objWidth,
-    objHeight
-  ) {
-    const objAspect = objWidth / objHeight
-    const cameraHFov = this.vfovToHfov(cameraVFov, cameraAspect)
-  
-    let distance = 0
-  
-    if (objAspect > cameraAspect) {
-      distance = this._distanceToFitObjectInView(objHeight, cameraVFov)
-    } else if (objAspect <= cameraAspect) {
-      distance = this._distanceToFitObjectInView(objWidth, cameraHFov)
-    }
-  
-    return distance
-  }
-
 }
 
 export { AlgoMission };

@@ -327,6 +327,11 @@ class MapManager
 		const maxTileWidth = 50; 	// prevent small maps looking too zoomed in
 		const maxTileHeight = 50;
 
+		// Flipper canvas is used to workaround an issue I had mirroring the map tiles
+		let flipperCanvas = document.createElement("canvas");
+		let flipperContext = flipperCanvas.getContext("2d");
+		flipperContext.save();
+
 		for( var mapIdx = 0; mapIdx < this.jsonMaps.length; ++mapIdx ) {
 
 			// Create a canvas fo hold the final map thumbnail image
@@ -337,21 +342,20 @@ class MapManager
 
 			var mapDef = this.jsonMaps[ mapIdx ];
 			var tileLayout = mapDef.tileLayout
+
+			// Calculate the size of each tile, and required offsets (as all tiles are positioned in relation to tile 0,0)
 			const [lowestX, lowestZ, highestX, highestZ] = this.calculateMapSize( tileLayout );
 
 			let xSpan = Math.abs(highestX-lowestX) + 1;
 			let zSpan = Math.abs(highestZ-lowestZ) + 1;
-			let scaledTileWidth = Math.min(thumbnailWidth / xSpan, maxTileWidth);
-			let scaledTileHeight = Math.min(thumbnailHeight / xSpan, maxTileHeight);
 
-			let xZeroOffset = 0 - lowestX;
-			let zZeroOffset = 0 - lowestZ;
+			let scaledTileWidth = Math.min(thumbnailWidth / xSpan, maxTileWidth);
+			let scaledTileHeight = Math.min(thumbnailHeight / zSpan, maxTileHeight);
 
 			// thumbnail will be left justified without these...
 			let centerOffsetX = (thumbnailWidth - (xSpan * scaledTileWidth)) / 2; 
 			let centerOffsetZ = (thumbnailWidth - (zSpan * scaledTileHeight)) / 2; 
-
-			// Calculate the size of each tile, and required offsets (as all tiles are positioned in relation to tile 0,0)
+			
 			for( var rowIdx = 0; rowIdx < tileLayout.length; rowIdx++ ) {
 				var mapTile = tileLayout[rowIdx];
 
@@ -366,21 +370,33 @@ class MapManager
 						tileCfg.hasOwnProperty('loadedTexture') && tileCfg.hasOwnProperty('loadedTextureFlipped') )
 					{
 						texture = tileCfg.loadedTexture;
-						flippedTexture = tileCfg.loadedTextureFlipped;
 					}
 				}
 
 				var image = texture.image;
-	
-				var destX = ((mapTile.x + xZeroOffset) * scaledTileWidth) + centerOffsetX;
-				var destZ = ((mapTile.z + zZeroOffset) * scaledTileHeight) + centerOffsetZ;
-				thumbContext.drawImage( image, destX ,destZ, scaledTileWidth, scaledTileHeight);
+
+				flipperCanvas.height = image.height;
+				flipperCanvas.width = image.width;
+				flipperContext.scale(-1,-1);
+
+				// Adjust between coordinate systems (JSON Map layoyt vs canvas)
+				let adjustedX = xSpan - (mapTile.x - lowestX) - 1;
+				var destX = ((adjustedX) * scaledTileWidth) + centerOffsetX; 
+
+				let adjustedZ = zSpan - (mapTile.z - lowestZ) - 1;
+				var destZ = ((adjustedZ) * scaledTileHeight) + centerOffsetZ;
+
+				// Remaining issue is that the image needs to be flipped horizontally and vertically
+				// Only way I could get it to work is to use an intermediate canvas..
+				flipperContext.drawImage( image, image.width*-1, image.height*-1);
+
+				thumbContext.drawImage( flipperCanvas, 0,0, image.width, image.height, destX ,destZ, scaledTileWidth, scaledTileHeight);
 			}
 
 			mapDef.thumbnailTexture = new THREE.CanvasTexture(thumbCanvas);
 			mapDef.thumbnailTexture.minFilter = THREE.LinearFilter;
 		}
- 
+
 		this.thumbnailsGenerated = true;
 	}
 
