@@ -45,6 +45,9 @@ Trophy Model (model/Trophy_SyntyStudios);
 Pigeon Model (model/Pigeon_FourthGreen);  
 "Pigeon" (https://skfb.ly/6ULNn) by FourthGreen is licensed under Creative Commons Attribution (http://creativecommons.org/licenses/by/4.0/).
 
+Arrow Model (model/Arrow_JakobHenerey);
+"Arrow" (https://skfb.ly/6BYMS) by Jakob Henerey is licensed under Creative Commons Attribution (http://creativecommons.org/licenses/by/4.0/).
+
 Button art (textures/*.png);
 From http://www.clipartpanda.com/
 

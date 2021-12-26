@@ -103,6 +103,10 @@ class AlgoMission {
         this.m_ScoreLoaded = false;
 
         this.m_MapSelectionObjects = [];
+
+        this.m_NextArrow = null;
+        this.m_PrevArrow = null;
+        this.m_ArrowLoaded = false;
     }
 
     updateScore( delta ) {
@@ -366,9 +370,8 @@ class AlgoMission {
             case AlgoMission.TAppState.RETRY:
                 break;
             case AlgoMission.TAppState.SELECTMAP:
-                let oldMap = this.m_SelectedMap;
-                this.m_SelectedMap = -1;
-                this.displayMapScreen( oldMap );
+                this.m_MapSelectIndex = this.m_SelectedMap;     // start selection at current map
+                this.displayMapScreen();
                 break;
         }
     }
@@ -699,7 +702,23 @@ class AlgoMission {
         if( this.m_TrophyLoaded == false ) {
             this.loadModel( "./models/Trophy_SyntyStudios/scene.gltf", glTFLoader, this.trophyCreatedCb.bind(this) );
         }
-        console.log("loadWinnerModels ending");
+    }
+
+    trophyCreatedCb( obj ) {
+        var threeGroup = obj.scene;
+        var object3d  = threeGroup.getObjectByName( "OSG_Scene" );
+        this.m_Trophy = object3d;
+        this.m_TrophyLoaded = true;
+    }
+
+    waitForWinnerLoad(isCreatedCallback, context) {
+        var waitForAll = setInterval(function () {
+          if (context.m_TrophyLoaded == true ) {
+            clearInterval(waitForAll);
+            isCreatedCallback();
+          }
+        }, 100);
+        console.log("waitForWinnerLoad ending");
     }
 
     loadModel(model, glTFLoader, isCreatedCallback) {
@@ -718,24 +737,6 @@ class AlgoMission {
                 console.log( 'Failed to load model ' + model );
             }
         );
-    }
-
-    trophyCreatedCb( obj ) {
-        var threeGroup = obj.scene;
-        var object3d  = threeGroup.getObjectByName( "OSG_Scene" );
-        this.m_Trophy = object3d;
-        this.m_TrophyLoaded = true;
-    }
-
-    waitForWinnerLoad(isCreatedCallback, context) {
-
-        var waitForAll = setInterval(function () {
-          if (context.m_TrophyLoaded == true ) {
-            clearInterval(waitForAll);
-            isCreatedCallback();
-          }
-        }, 100);
-        console.log("waitForWinnerLoad ending");
     }
 
     runWinnerScreen( ) {
@@ -980,7 +981,46 @@ class AlgoMission {
         return visibleWidth;
     }
 
-    displayMapScreen( previousMap ) {
+    displayMapScreen() {
+        this.m_SelectedMap = -1;
+        this.loadMapSelectModels( this.m_GLTFLoader );
+        this.waitForMapSelectLoad( this.runMapSelectScreen.bind(this), this );
+    }
+
+    loadMapSelectModels( glTFLoader ) {
+        if( this.m_ArrowLoaded == false ) {
+            this.loadModel( "./models/Arrow_JakobHenerey/scene.gltf", glTFLoader, this.arrowCreatedCb.bind(this) );
+        }
+        console.log("Arrow_JakobHenerey ending");
+    }
+
+    arrowCreatedCb( obj ) {
+        var threeGroup = obj.scene;
+        var object3d  = threeGroup.getObjectByName( "OSG_Scene" );
+       // this.m_Arrow = object3d;
+
+        // TODO - hack for now, figure out correct way to do this
+        this.m_PrevArrow = object3d.clone();
+        this.m_PrevArrow.children[0].children[0].children[0].children[0].name = "mapSelectPrevArrow";
+        
+        // TODO - hack for now, figure out correct way to do this
+        this.m_NextArrow = object3d.clone();
+        this.m_NextArrow.children[0].children[0].children[0].children[0].name = "mapSelectNextArrow";
+
+        this.m_ArrowLoaded = true;
+    }
+    
+    waitForMapSelectLoad(isCreatedCallback, context) {
+        var waitForAll = setInterval(function () {
+          if (context.m_ArrowLoaded == true ) {
+            clearInterval(waitForAll);
+            isCreatedCallback();
+          }
+        }, 100);
+        console.log("waitForArrowLoad ending");
+    }
+
+    runMapSelectScreen() {
 
         // remove any old map meshes
         this.removeMapSelectionMeshes();
@@ -1004,7 +1044,7 @@ class AlgoMission {
         xOffset += (thumbnailWidth/2);                         // .. as coordinates are in middle of tile
         let yOffset = 0;                                       // fine, keep it in the middle
 
-        let currentMapOffset = Math.max(previousMap, 0);
+        let currentMapOffset = Math.max(this.m_MapSelectIndex, 0);
  
         this.displayMapSet( numMapsPerPage, currentMapOffset, xOffset, thumbnailWidth, mapSpacing, distanceFromCamera );
     }
@@ -1032,6 +1072,8 @@ class AlgoMission {
         for( var i = 0; i < this.m_MapSelectionObjects.length; i++ ) {
             this.m_Camera.remove( this.m_MapSelectionObjects[i] );
         }
+
+        this.m_Camera.remove( this.m_Camera.getObjectByName("mapSelectSpotlight") );
     }
 
     displayMapSet( numToShow, firstId, xOffset, thumbnailWidth, mapSpacing, distanceFromCamera ) {
@@ -1067,12 +1109,59 @@ class AlgoMission {
         }
 
         if( mapIdx < this.m_MapManager.jsonMaps.length ) {
-            // TODO display 'next maps' arrow
+
+            this.m_NextArrow.rotation.set( 0, 1.6, 0 );
+            this.m_NextArrow.position.set( 3, -6, -distanceFromCamera );
+            this.m_NextArrow.scale.set(0.5,0.5,0.5);
+            this.m_NextArrow.name = "mapSelectNextArrow";
+            let instance = this;
+            let animDelayMs = 10;
+            let rotateStep = 0.01;
+            
+            this.m_MapSelectionObjects.push(this.m_NextArrow);
+            this.m_Camera.add(this.m_NextArrow);
+
+            (function animateNextArrowSpin() {
+                // Spin while on select screen and has parent (i.e. camera)
+                if (instance.m_State == AlgoMission.TAppState.SELECTMAP &&
+                    instance.m_NextArrow.parent != null ) 
+                {
+                    instance.m_NextArrow.rotation.x = instance.m_NextArrow.rotation.x - rotateStep;
+                    setTimeout(animateNextArrowSpin, animDelayMs);
+                }
+            })();
         }
 
         if( firstId > 0 ) {
-            // TODO display 'prev maps' arrow
+            this.m_PrevArrow.rotation.set( 0, -1.6, 0 );
+            this.m_PrevArrow.position.set( -3, -6, -distanceFromCamera );
+            this.m_PrevArrow.scale.set(0.5,0.5,0.5);
+            this.m_PrevArrow.name = "mapSelectPrevArrow";
+            let instance = this;
+            let animDelayMs = 10;
+            let rotateStep = 0.01;
+            
+            this.m_MapSelectionObjects.push(this.m_PrevArrow);
+            this.m_Camera.add(this.m_PrevArrow);
+
+            (function animatePrevArrowSpin() {
+                // Spin while on select screen and has parent (i.e. camera)
+                if (instance.m_State == AlgoMission.TAppState.SELECTMAP &&
+                    instance.m_PrevArrow.parent != null )
+                {
+                    instance.m_PrevArrow.rotation.x = instance.m_PrevArrow.rotation.x - rotateStep;
+                    setTimeout(animatePrevArrowSpin, animDelayMs);
+                }
+            })();
+
+
         }
+
+        let spotlight = new THREE.SpotLight( 0xffffff, 1, 0, Math.PI/2  );
+        spotlight.position.set(0,0,distanceFromCamera+1);
+        spotlight.target = this.m_NextArrow;
+        spotlight.name = "mapSelectSpotlight";
+        this.m_Camera.add(spotlight);
     }
 
     setupCollisionDetection() {
@@ -1152,6 +1241,15 @@ class AlgoMission {
         if( this.m_State == AlgoMission.TAppState.SELECTMAP ) {
 
             let mapSelected = this.detectMapSelection(event.clientX, event.clientY, this.m_Raycaster );
+            console.log("ITF: Map selection clik on " + mapSelected);
+            if( mapSelected == "mapSelectPrevArrow" ) {
+                this.m_MapSelectIndex = Math.max(0, this.m_MapSelectIndex-3);
+                this.displayMapScreen();
+            }
+            else if( mapSelected == "mapSelectNextArrow" ) {
+                this.m_MapSelectIndex = Math.min(this.m_MapManager.jsonMaps.length-3, this.m_MapSelectIndex+3);
+                this.displayMapScreen();
+            }
             if( mapSelected > -1 ) {
                 this.m_SelectedMap = mapSelected;
             }
