@@ -1124,30 +1124,13 @@ class AlgoMission {
         var mapIdx = firstId;
         let mapY = 0;
         for( ; mapIdx < (numToShow+firstId); ++mapIdx ) {
-
             var mapDef = this.m_MapManager.jsonMaps[ mapIdx ];
             if( !mapDef.hasOwnProperty('thumbnailTexture') ) {
                 console.log("WARNING: Map " + mapIdx + " lacks a thumbnail");
                 continue;
             }
 
-            var thumbnailTexture = mapDef.thumbnailTexture;
-
-			let planeGeo = new THREE.PlaneGeometry(thumbnailWidth, thumbnailHeight);
-			let material = new THREE.MeshBasicMaterial( { side:THREE.DoubleSide, map:thumbnailTexture, transparent:false, opacity:0.5 } );
-			let mesh = new THREE.Mesh(planeGeo, material);
-
-            let mapX = (screenOrder * thumbnailWidth) + (screenOrder * mapSpacing);
-            mapX += xOffset;    // center
-            
-            mesh.position.set( mapX, mapY, -distanceFromCamera );
-     
-            mesh.name = mapIdx;
-            //mesh.id = "MapThumbnail_" + mapIdx;
-
-            this.m_MapSelectionObjects.push(mesh);
-			this.m_Camera.add( mesh );
-
+            this.addMapSelectThumbnail( mapDef, mapIdx, thumbnailWidth, thumbnailHeight, screenOrder, mapSpacing, xOffset, mapY, distanceFromCamera );
             screenOrder++;
         }
 
@@ -1186,6 +1169,44 @@ class AlgoMission {
         spotlight.target = this.m_NextArrow;
         spotlight.name = "mapSelectSpotlight";
         this.m_Camera.add(spotlight);
+    }
+
+    addMapSelectThumbnail( mapDef, mapIdx, thumbnailWidth, thumbnailHeight, screenOrder, mapSpacing, xOffset, mapY, distanceFromCamera ) {
+
+        let mapSelectGroup = new THREE.Group();
+
+        var thumbnailTexture = mapDef.thumbnailTexture;
+    
+        let planeGeo = new THREE.PlaneGeometry(thumbnailWidth, thumbnailHeight);
+        let material = new THREE.MeshBasicMaterial( { side:THREE.DoubleSide, map:thumbnailTexture, transparent:false, opacity:0.5 } );
+        let thumbMesh = new THREE.Mesh(planeGeo, material);
+
+        let mapX = (screenOrder * thumbnailWidth) + (screenOrder * mapSpacing);
+        mapX += xOffset;    // center
+        
+        thumbMesh.position.set( mapX, mapY, -distanceFromCamera );
+        thumbMesh.name = mapIdx;
+        
+        mapSelectGroup.add(thumbMesh);
+
+        // Add map Id text
+        let mapIdTextHeight = 0.75;
+        let mapIdText = "Map #" + mapIdx + ": " +  mapDef.name;
+        let mapIdMsgMesh = this.messageToMesh(mapIdText, mapIdTextHeight, 0xFFFFFF, undefined);
+        mapIdMsgMesh.position.set( thumbMesh.position.x, thumbMesh.position.y+(thumbnailHeight/2)+mapIdTextHeight, -(distanceFromCamera) );
+        mapIdMsgMesh.name = mapIdx;
+        mapSelectGroup.add( mapIdMsgMesh );
+
+        // Add map descriptive text
+        let mapDescrTextHeight = 0.4;
+        let mapDescrText = mapDef.instructions;
+        let mapDescrMesh = this.messageToMesh(mapDescrText, mapDescrTextHeight, 0xFFFFFF, undefined);
+        mapDescrMesh.position.set( thumbMesh.position.x, thumbMesh.position.y-(thumbnailHeight/2)-mapDescrTextHeight, -(distanceFromCamera) );
+        mapDescrMesh.name = mapIdx;
+        mapSelectGroup.add( mapDescrMesh );
+
+        this.m_MapSelectionObjects.push(mapSelectGroup);
+        this.m_Camera.add(mapSelectGroup);
     }
 
     addMapSelectArrow( arrow, name, xPos, yPos, zPos, yRot ) {
