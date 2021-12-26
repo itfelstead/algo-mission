@@ -107,6 +107,7 @@ class AlgoMission {
         this.m_NextArrow = null;
         this.m_PrevArrow = null;
         this.m_ArrowLoaded = false;
+        this.m_ArrowsSpinning = false;
     }
 
     updateScore( delta ) {
@@ -974,11 +975,28 @@ class AlgoMission {
         })();
     }
 
-    getScreenWidthAtCameraDistance( distance ) {
-        var vFOV = THREE.MathUtils.degToRad( this.m_Camera.fov ); // convert vertical fov to radians
-        var height = 2 * Math.tan( vFOV / 2 ) * distance; 
+    getBestSelectMapScreenWidth( distance ) {
+
+        let screenHeight = this.getScreenHeightAtCameraDistance( distance );
+
+        // We want enough vertical space for, say, 2 maps high (so we can add arrows)
+        // so limit the aspect ratio if necessary
+        let aspect = Math.min( 1.5, this.m_Camera.aspect );
+
+        let screenWidth = screenHeight * aspect;
+        
+        return screenWidth;
+    }
+
+    getScreenWidthAtCameraDistance( distance, height ) {
         var visibleWidth = height * this.m_Camera.aspect;
         return visibleWidth;
+    }
+
+    getScreenHeightAtCameraDistance( distance ) {
+        var vFOV = THREE.MathUtils.degToRad( this.m_Camera.fov ); // convert vertical fov to radians
+        var height = 2 * Math.tan( vFOV / 2 ) * distance; 
+        return height;
     }
 
     displayMapScreen() {
@@ -999,6 +1017,12 @@ class AlgoMission {
         var object3d  = threeGroup.getObjectByName( "OSG_Scene" );
        // this.m_Arrow = object3d;
 
+        object3d.scale.set(0.5, 0.5, 0.5);
+        object3d.rotation.set( 0, 1.6, 0 );
+
+        this.m_ArrowHeightOffset = this.calculateArrowHeightOffset( object3d );
+
+
         // TODO - hack for now, figure out correct way to do this
         this.m_PrevArrow = object3d.clone();
         this.m_PrevArrow.children[0].children[0].children[0].children[0].name = "mapSelectPrevArrow";
@@ -1010,6 +1034,22 @@ class AlgoMission {
         this.m_ArrowLoaded = true;
     }
     
+    calculateArrowHeightOffset( arrow ) {
+        let arrowHeightOffset = 0;
+        arrow.traverse( function( node ) {
+
+            if ( node.type == "Mesh" ) { //node instanceof THREE.Mesh ) {
+                const box = new THREE.Box3();
+                box.copy( node.geometry.boundingBox ).applyMatrix4( node.matrixWorld );
+                let arrowSize = new THREE.Vector3();
+                box.getSize( arrowSize );
+                arrowHeightOffset = (arrowSize.y / 2);  
+            }
+        } );
+
+        return arrowHeightOffset;
+    }
+
     waitForMapSelectLoad(isCreatedCallback, context) {
         var waitForAll = setInterval(function () {
           if (context.m_ArrowLoaded == true ) {
@@ -1026,7 +1066,7 @@ class AlgoMission {
         this.removeMapSelectionMeshes();
 
         let distanceFromCamera = 10;
-        let selectMapScreenSize = this.getScreenWidthAtCameraDistance( distanceFromCamera );
+        let selectMapScreenSize = this.getBestSelectMapScreenWidth( distanceFromCamera );
 
         let numMapsPerPage = 3;
         if( this.m_MapManager.jsonMaps.length < numMapsPerPage ) {
@@ -1051,6 +1091,7 @@ class AlgoMission {
 
     removeMapScreen() {
         this.removeMapSelectionMeshes();
+        this.m_ArrowsSpinning = false;
 
         // Until we sort the instruction panel / control panel too;
             var fadeStep = 0.1;
@@ -1072,6 +1113,7 @@ class AlgoMission {
         for( var i = 0; i < this.m_MapSelectionObjects.length; i++ ) {
             this.m_Camera.remove( this.m_MapSelectionObjects[i] );
         }
+        this.m_MapSelectionObjects = [];
 
         this.m_Camera.remove( this.m_Camera.getObjectByName("mapSelectSpotlight") );
     }
@@ -1080,6 +1122,7 @@ class AlgoMission {
         let screenOrder = 0;
         let thumbnailHeight = thumbnailWidth;
         var mapIdx = firstId;
+        let mapY = 0;
         for( ; mapIdx < (numToShow+firstId); ++mapIdx ) {
 
             var mapDef = this.m_MapManager.jsonMaps[ mapIdx ];
@@ -1096,7 +1139,7 @@ class AlgoMission {
 
             let mapX = (screenOrder * thumbnailWidth) + (screenOrder * mapSpacing);
             mapX += xOffset;    // center
-            let mapY = 0;
+            
             mesh.position.set( mapX, mapY, -distanceFromCamera );
      
             mesh.name = mapIdx;
@@ -1108,53 +1151,34 @@ class AlgoMission {
             screenOrder++;
         }
 
+        let arrowYOffset = mapY + (thumbnailWidth/2) + this.m_ArrowHeightOffset; 
+
         if( mapIdx < this.m_MapManager.jsonMaps.length ) {
-
-            this.m_NextArrow.rotation.set( 0, 1.6, 0 );
-            this.m_NextArrow.position.set( 3, -6, -distanceFromCamera );
-            this.m_NextArrow.scale.set(0.5,0.5,0.5);
-            this.m_NextArrow.name = "mapSelectNextArrow";
-            let instance = this;
-            let animDelayMs = 10;
-            let rotateStep = 0.01;
-            
-            this.m_MapSelectionObjects.push(this.m_NextArrow);
-            this.m_Camera.add(this.m_NextArrow);
-
-            (function animateNextArrowSpin() {
-                // Spin while on select screen and has parent (i.e. camera)
-                if (instance.m_State == AlgoMission.TAppState.SELECTMAP &&
-                    instance.m_NextArrow.parent != null ) 
-                {
-                    instance.m_NextArrow.rotation.x = instance.m_NextArrow.rotation.x - rotateStep;
-                    setTimeout(animateNextArrowSpin, animDelayMs);
-                }
-            })();
+            this.addMapSelectArrow( this.m_NextArrow, "mapSelectNextArrow", 3, -(arrowYOffset), -distanceFromCamera, 1.6 )
         }
 
         if( firstId > 0 ) {
-            this.m_PrevArrow.rotation.set( 0, -1.6, 0 );
-            this.m_PrevArrow.position.set( -3, -6, -distanceFromCamera );
-            this.m_PrevArrow.scale.set(0.5,0.5,0.5);
-            this.m_PrevArrow.name = "mapSelectPrevArrow";
+            this.addMapSelectArrow( this.m_PrevArrow, "mapSelectPrevArrow", -3, -(arrowYOffset), -distanceFromCamera, -1.6 )
+        }
+
+        // Set the arrows spinning only once per 'selectLevel' state
+        if( !this.m_ArrowsSpinning ) {
+
+            this.m_ArrowsSpinning = true;
+
             let instance = this;
             let animDelayMs = 10;
             let rotateStep = 0.01;
-            
-            this.m_MapSelectionObjects.push(this.m_PrevArrow);
-            this.m_Camera.add(this.m_PrevArrow);
-
-            (function animatePrevArrowSpin() {
+            (function animateArrowSpin() {
                 // Spin while on select screen and has parent (i.e. camera)
-                if (instance.m_State == AlgoMission.TAppState.SELECTMAP &&
-                    instance.m_PrevArrow.parent != null )
+                if (instance.m_State == AlgoMission.TAppState.SELECTMAP ) 
                 {
+                    instance.m_NextArrow.rotation.x = instance.m_NextArrow.rotation.x - rotateStep;
                     instance.m_PrevArrow.rotation.x = instance.m_PrevArrow.rotation.x - rotateStep;
-                    setTimeout(animatePrevArrowSpin, animDelayMs);
+    
+                    setTimeout(animateArrowSpin, animDelayMs);
                 }
             })();
-
-
         }
 
         let spotlight = new THREE.SpotLight( 0xffffff, 1, 0, Math.PI/2  );
@@ -1162,6 +1186,16 @@ class AlgoMission {
         spotlight.target = this.m_NextArrow;
         spotlight.name = "mapSelectSpotlight";
         this.m_Camera.add(spotlight);
+    }
+
+    addMapSelectArrow( arrow, name, xPos, yPos, zPos, yRot ) {
+        arrow.scale.set(0.5,0.5,0.5);
+        arrow.rotation.set( 0, yRot, 0 );
+        arrow.position.set( xPos, yPos, zPos );
+        arrow.name = name;
+        
+        this.m_MapSelectionObjects.push(arrow);
+        this.m_Camera.add(arrow);
     }
 
     setupCollisionDetection() {
