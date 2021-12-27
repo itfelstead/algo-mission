@@ -24,7 +24,7 @@ import { GLTFLoader } from 'https://cdn.skypack.dev/three@0.135.0/examples/jsm/l
  */
 var ALGO = ALGO || {};
 
-// Instruction Manager can be a map tile observer
+// Instruction Manager can be a map tile observer 
 import { InstructionManager } from './instructionmanager.mjs';
 // Bot can be a map tile observer
 import { Bot } from './bot.mjs';
@@ -73,6 +73,10 @@ class MapManager
 	
 		this.loadedTextures = {};   // texture path/name to loaded texture;
 	
+		this.mapLoaded = false;
+		this.texturesLoaded = false;
+		this.thumbnailsGenerated = false;
+
 		// Positioning:
 		// 	All tile positions are relative to the start tile (at 0,0)
 		//      (on which the bus will be placed).
@@ -84,7 +88,7 @@ class MapManager
 		this.mapLoaded = false;
 
 		// Flair Assets
-		this.flairAssetsToLoad = 4;
+		this.flairAssetsToLoad = 5;
 
 		this.flairGltf = []; 	// "Bird", "Lady", "BusStop"
 		this.flairAudio = []; 	// "BirdFlairSound_Angry", "LadyFlairSound_Angry"
@@ -96,8 +100,6 @@ class MapManager
 		this.observers = [];
 
 		this.m_Successes = 0;
-
-		
 	}
 
 	registerObserver(observer)
@@ -162,17 +164,33 @@ class MapManager
 				function(xhr) { console.error(xhr); }
 		);
 
-		var waitForLoad = setInterval( function(){
+		// wait until maps are loaded, then load textures and flair...
+		var waitForMapLoad = setInterval( function(){
 			if( instance.mapLoaded == true )
 			{
-				instance.loadTextures( textureLoader, callbackFn  );
-				clearInterval( waitForLoad );
+				instance.loadTextures( textureLoader, 
+					function() {
+						instance.texturesLoaded = true;
+					} );
+
+				instance.loadFlairModels( glTFLoader );
+
+				clearInterval( waitForMapLoad );
 			}
 		}, 100 ); 
 
-        this.loadFlairModels( glTFLoader );
+		// if the textures are loaded, then generate thumbnails
+		var waitForTextureLoad = setInterval( 
+			function(){
+				if( instance.texturesLoaded == true ) {
+					instance.generateThumbnails();
+					clearInterval( waitForTextureLoad );
+				}
+			}
+	   	);
 
-        this.waitForMapLoad( callbackFn, this );
+		// wait until everything is loaded before calling caller's callback
+        this.waitForMapFullyLoaded( callbackFn, this );
 	}
 
 	loadFlairModels( glTFLoader )
@@ -267,16 +285,120 @@ class MapManager
         this.flairAssetsToLoad--;
     }
 
-	waitForMapLoad(isCreatedCallback, context) 
+	waitForMapFullyLoaded(isCreatedCallback, context) 
 	{
         var waitForAll = setInterval(function () {
+
           if (context.mapLoaded == true &&
-			  context.flairAssetsToLoad == 0 ) {
-            clearInterval(waitForAll);
-            isCreatedCallback(); 
+			  context.texturesLoaded == true &&
+			  context.flairAssetsToLoad <= 0 &&
+			  context.thumbnailsGenerated == true) {
+
+				if( context.flairAssetsToLoad < 0 ) {
+					console.log("WARNING: Unexpected number of flair loaded.");
+				}
+
+				clearInterval(waitForAll);
+				isCreatedCallback(); 
           }
         }, 100);
     }
+
+	calculateMapSize( tileLayout ) {
+		let lowestX = 0;
+		let highestX = 0;
+		let lowestZ = 0;
+		let highestZ = 0;
+
+		for( var i =0; i < tileLayout.length; ++i ) {
+			let row = tileLayout[i];
+			lowestX = Math.min( row.x, lowestX );
+			lowestZ = Math.min( row.z, lowestZ );
+			highestX = Math.max( row.x, highestX );
+			highestZ = Math.max( row.z, highestZ );
+		}
+
+		return [lowestX, lowestZ, highestX, highestZ];
+	}
+
+	generateThumbnails() {
+		const thumbnailWidth = 200;
+		const thumbnailHeight = 200;
+		const maxTileWidth = 50; 	// prevent small maps looking too zoomed in
+		const maxTileHeight = 50;
+
+		// Flipper canvas is used to workaround an issue I had mirroring the map tiles
+		let flipperCanvas = document.createElement("canvas");
+		let flipperContext = flipperCanvas.getContext("2d");
+		flipperContext.save();
+
+		for( var mapIdx = 0; mapIdx < this.jsonMaps.length; ++mapIdx ) {
+
+			// Create a canvas fo hold the final map thumbnail image
+			let thumbCanvas = document.createElement("canvas");
+			let thumbContext = thumbCanvas.getContext("2d");
+			thumbCanvas.width = thumbnailWidth;
+			thumbCanvas.height = thumbnailHeight;
+
+			var mapDef = this.jsonMaps[ mapIdx ];
+			var tileLayout = mapDef.tileLayout
+
+			// Calculate the size of each tile, and required offsets (as all tiles are positioned in relation to tile 0,0)
+			const [lowestX, lowestZ, highestX, highestZ] = this.calculateMapSize( tileLayout );
+
+			let xSpan = Math.abs(highestX-lowestX) + 1;
+			let zSpan = Math.abs(highestZ-lowestZ) + 1;
+
+			let scaledTileWidth = Math.min(thumbnailWidth / xSpan, maxTileWidth);
+			let scaledTileHeight = Math.min(thumbnailHeight / zSpan, maxTileHeight);
+
+			// thumbnail will be left justified without these...
+			let centerOffsetX = (thumbnailWidth - (xSpan * scaledTileWidth)) / 2; 
+			let centerOffsetZ = (thumbnailWidth - (zSpan * scaledTileHeight)) / 2; 
+			
+			for( var rowIdx = 0; rowIdx < tileLayout.length; rowIdx++ ) {
+				var mapTile = tileLayout[rowIdx];
+
+				// Get pre-loaded texture
+				var texture = null;
+				var flippedTexture = null;
+
+				if( mapTile.id )
+				{
+					var tileCfg = this.tileConfig[mapTile.id];
+					if( tileCfg &&
+						tileCfg.hasOwnProperty('loadedTexture') && tileCfg.hasOwnProperty('loadedTextureFlipped') )
+					{
+						texture = tileCfg.loadedTexture;
+					}
+				}
+
+				var image = texture.image;
+
+				flipperCanvas.height = image.height;
+				flipperCanvas.width = image.width;
+				flipperContext.scale(-1,-1);
+
+				// Adjust between coordinate systems (JSON Map layoyt vs canvas)
+				let adjustedX = xSpan - (mapTile.x - lowestX) - 1;
+				var destX = ((adjustedX) * scaledTileWidth) + centerOffsetX; 
+
+				let adjustedZ = zSpan - (mapTile.z - lowestZ) - 1;
+				var destZ = ((adjustedZ) * scaledTileHeight) + centerOffsetZ;
+
+				// Remaining issue is that the image needs to be flipped horizontally and vertically
+				// Only way I could get it to work is to use an intermediate canvas..
+				flipperContext.drawImage( image, image.width*-1, image.height*-1);
+
+				thumbContext.drawImage( flipperCanvas, 0,0, image.width, image.height, destX ,destZ, scaledTileWidth, scaledTileHeight);
+			}
+
+			mapDef.thumbnailTexture = new THREE.CanvasTexture(thumbCanvas);
+			mapDef.thumbnailTexture.minFilter = THREE.LinearFilter;
+		}
+
+		this.thumbnailsGenerated = true;
+	}
 
 	/**
 	* getMapInfo()
@@ -398,6 +520,7 @@ class MapManager
 			var tileObject = new MapTile( "Tile_" + i, stdTileGeo, materials, this.gameMgr );
 			let tileMesh = tileObject.getTileMesh();
 			tileObject.setTileType( tileId );
+			tileObject.setRelativePosition( mapTile.x, mapTile.z );
 			this.translateTilePosition( tileObject, mapTile.x, mapTile.z );
 
 			if( mapTile.hasOwnProperty('role') )
@@ -470,8 +593,6 @@ class MapManager
 		model.scale.set(0.5,0.5,0.5);
 		tileObject.addFlair( flair );
 	}
-
-
 
 	positionBusStop( tileObject, mesh )
 	{
@@ -708,15 +829,50 @@ class MapManager
 
 	handleNewInstruction() {
 		var currentInstruction = this.gameMgr.getInstructionMgr().currentInstruction();
-		// Act on special (pause/horn)
-		if( currentInstruction == InstructionManager.instructionConfig.FIRE ||
-			currentInstruction == InstructionManager.instructionConfig.PAUSE ) {
+
+		if( currentInstruction == InstructionManager.instructionConfig.PAUSE ) {
 			// Apply the action to any flair on the current tile
 			if( this.currentActiveTile != "" ) {
 				let oldTile = this.idToMapObject[ this.currentActiveTile ];
 				oldTile.doSpecial( currentInstruction );
 			}
 		}
+		else if( currentInstruction == InstructionManager.instructionConfig.FIRE ) {
+			// Apply the action to any flair on tiles adjacent to the current tile
+			if( this.currentActiveTile != "" ) {
+				let adjacentTileIds = this.getAdjacentTileIds( this.currentActiveTile );
+				if( adjacentTileIds ) {
+					for( var i=0; i < adjacentTileIds.length; ++i ) {
+						let adjTileId = adjacentTileIds[i];
+						let adjTile = this.idToMapObject[ adjTileId ];
+						adjTile.doSpecial( currentInstruction );
+					}
+				}
+			}
+		}
+	}
+
+	getAdjacentTileIds( middleTileId )
+	{
+		let adjTileIds = [];
+
+		let middleTile = this.idToMapObject[ middleTileId ];
+		let middleX = middleTile.getRelativePositionX();
+		let middleZ = middleTile.getRelativePositionZ();
+
+		for( var tileId in this.idToMapObject ) {
+
+			// We include the middle tile in the 'adjacent' list
+			let tileToTest = this.idToMapObject[ tileId ];
+
+			if( (Math.abs(middleX - tileToTest.getRelativePositionX()) < 2) &&
+			    (Math.abs(middleZ - tileToTest.getRelativePositionZ()) < 2) )
+			{
+				adjTileIds.push(tileId);
+			}
+		}
+
+		return adjTileIds;
 	}
 
 	activateTile( tileId )
@@ -803,7 +959,6 @@ class MapManager
 		xhr.send();
 	}
 
-
 	/**
 	*  loadTextures
 	*
@@ -861,7 +1016,12 @@ class MapManager
 			}
 		}
 
-		function createMyInterval(f,dynamicParameter,interval) { return setInterval(function() { f(dynamicParameter); }, interval); }
+		function createMyInterval(f,dynamicParameter,interval) { 
+			return setInterval( function() { 
+					f(dynamicParameter);
+				}, interval); 
+		}
+
 		var waitForTextures = createMyInterval(
 			function(tileConfig) {
 				var allDone = true;

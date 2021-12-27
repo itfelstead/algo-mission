@@ -55,7 +55,7 @@ class AlgoMission {
         // Bot
         this.m_Bot = null;
         this.m_BotLoaded = false;
-
+ 
         this.m_MapLoaded = false;
 
         this.m_SkyLoaded = false;
@@ -101,6 +101,15 @@ class AlgoMission {
         this.m_TotalScore = 0;
         this.m_ScoreMesh = null;
         this.m_ScoreLoaded = false;
+
+        this.m_MapSelectionObjects = [];
+
+        this.m_NextArrow = null;
+        this.m_PrevArrow = null;
+        this.m_ArrowLoaded = false;
+        this.m_ArrowsSpinning = false;
+
+        this.m_RetryButtonObjects = [];
     }
 
     updateScore( delta ) {
@@ -223,7 +232,6 @@ class AlgoMission {
 
                 if (!this.m_Bot.isBusy() && this.m_InstructionMgr.nextInstruction() != undefined) {
                     this.m_Bot.prepareForNewInstruction();      // e.g. movement instructions affect bot location
-                    this.m_MapManager.handleNewInstruction();   // e.g. fire and pause instructions may affect tile flair
                 }
 
                 // camera must follow bot
@@ -277,7 +285,8 @@ class AlgoMission {
 
         switch (this.m_State) {
             case AlgoMission.TAppState.INITIAL:
-                if (this.m_Bot.mesh != null && typeof (this.m_Bot.mesh) != "undefined") {
+                if (this.m_Bot.mesh != null && typeof (this.m_Bot.mesh) != "undefined" &&
+                    this.m_MapLoaded == true ) {
                     newState = AlgoMission.TAppState.SELECTMAP;
                 }
                 break;
@@ -364,7 +373,7 @@ class AlgoMission {
             case AlgoMission.TAppState.RETRY:
                 break;
             case AlgoMission.TAppState.SELECTMAP:
-                this.m_SelectedMap = -1;
+                this.m_MapSelectIndex = this.m_SelectedMap;     // start selection at current map
                 this.displayMapScreen();
                 break;
         }
@@ -592,7 +601,10 @@ class AlgoMission {
         this.m_MapLoaded = false;
         this.m_MapManager = new MapManager( this );
         var self = this;
-        this.m_MapManager.load(textureLoader, this.m_GLTFLoader, function () { self.m_MapLoaded = true; });
+        this.m_MapManager.load(textureLoader, this.m_GLTFLoader, 
+                function () { 
+                    self.m_MapLoaded = true;
+                });
     }
 
     addInstructionManager(mapManager) {
@@ -693,7 +705,23 @@ class AlgoMission {
         if( this.m_TrophyLoaded == false ) {
             this.loadModel( "./models/Trophy_SyntyStudios/scene.gltf", glTFLoader, this.trophyCreatedCb.bind(this) );
         }
-        console.log("loadWinnerModels ending");
+    }
+
+    trophyCreatedCb( obj ) {
+        var threeGroup = obj.scene;
+        var object3d  = threeGroup.getObjectByName( "OSG_Scene" );
+        this.m_Trophy = object3d;
+        this.m_TrophyLoaded = true;
+    }
+
+    waitForWinnerLoad(isCreatedCallback, context) {
+        var waitForAll = setInterval(function () {
+          if (context.m_TrophyLoaded == true ) {
+            clearInterval(waitForAll);
+            isCreatedCallback();
+          }
+        }, 100);
+        console.log("waitForWinnerLoad ending");
     }
 
     loadModel(model, glTFLoader, isCreatedCallback) {
@@ -712,24 +740,6 @@ class AlgoMission {
                 console.log( 'Failed to load model ' + model );
             }
         );
-    }
-
-    trophyCreatedCb( obj ) {
-        var threeGroup = obj.scene;
-        var object3d  = threeGroup.getObjectByName( "OSG_Scene" );
-        this.m_Trophy = object3d;
-        this.m_TrophyLoaded = true;
-    }
-
-    waitForWinnerLoad(isCreatedCallback, context) {
-
-        var waitForAll = setInterval(function () {
-          if (context.m_TrophyLoaded == true ) {
-            clearInterval(waitForAll);
-            isCreatedCallback();
-          }
-        }, 100);
-        console.log("waitForWinnerLoad ending");
     }
 
     runWinnerScreen( ) {
@@ -866,73 +876,39 @@ class AlgoMission {
     }
 
     displayDeathScreen() {
-        var loadDiv = document.createElement('div');
 
-        loadDiv.id = "deathScreen";
-        loadDiv.style.cssText =
-            "opacity: 0;" +
-            "background-image: url('./images/retry.jpg');" +
-            "background-repeat: no-repeat;" +
-            "background-size: cover;" +
-            "width: 50%;" +
-            "height: 50%;" +
-            "top: 50%;" +
-            "left: 50%;" +
-            "transform: translate(-50%, -50%); " + 	// makes sure we're dead center
-            "text-align: center;" +
-            "color: White;" +
-            "overflow: auto;" +
-            "position: fixed;" +
-            "font: 20px arial,serif;" +
-            "display:inline-block;" +
-            "}";
-        loadDiv.innerHTML = "Oops!... <p></p>";
+        let distanceFromCamera = 10;
+        let textHeight = 1;
 
-        var retryButtonElement = document.createElement("button");
-        retryButtonElement.onclick = this.retryMap.bind(this);
-        retryButtonElement.id = "retryButton";
-        retryButtonElement.textContent = "Try Again";
-        retryButtonElement.style.cssText =
-            "width: 25%;" +
-            "height: 20%;" +
-            "margin-left: 0%;" +
-            "position: relative;" +
-            "top: 0%;" +
-            "font: 24px arial,serif;";
-        loadDiv.appendChild(retryButtonElement);
+        let retryMesh = this.messageToMesh("Try again?", textHeight, 0xFFFFFF, undefined);
+        retryMesh.name = "retryButton";
 
-        var selectButtonElement = document.createElement("button");
-        selectButtonElement.onclick = this.selectMap.bind(this);
-        selectButtonElement.id = "selectButton";
-        selectButtonElement.textContent = "Change Mission";
-        selectButtonElement.style.cssText =
-            "width: 25%;" +
-            "height: 20%;" +
-            "margin-right: 0%;" +
-            "position: relative;" +
-            "top: -3%;" +
-            "font: 24px arial,serif;";
-        loadDiv.appendChild(selectButtonElement);
+        let chooseMapMesh = this.messageToMesh("Choose map", textHeight, 0xFFFFFF, undefined);
+        chooseMapMesh.name = "chooseMapButton";
 
-        document.body.appendChild(loadDiv);
+        let box = new THREE.Box3().setFromObject( retryMesh );
+        let dimensions = new THREE.Vector3();
+        box.getSize(dimensions);
+        let retryWidth = dimensions.x;
 
-        var fadeStep = 0.07;
-        var fadePauseMs = 100;
-        var fade = 0.0;
-        var self = this;
-        (function fadeDivs() {
-            document.getElementById("deathScreen").style.opacity = fade;
 
-            if (self.m_ControlPanel != null && self.m_InstructionMgr != null) {
-                self.m_ControlPanel.setWindowOpacity(1.0 - fade);
-                self.m_InstructionMgr.setWindowOpacity(1.0 - fade);
-            }
+        box = new THREE.Box3().setFromObject( chooseMapMesh );
+        dimensions = new THREE.Vector3();
+        box.getSize(dimensions);
+    
+        let screenWidth = this.getBestSelectMapScreenWidth(distanceFromCamera);
 
-            fade += fadeStep;
-            if (fade < 1.0) {
-                setTimeout(fadeDivs, fadePauseMs);
-            }
-        })();
+        let halfScreen = (screenWidth/2);    // as it is 0 centered
+        let retryPadding = (halfScreen - retryWidth) / 2;
+
+        retryMesh.position.set( -(halfScreen-retryPadding), 0, -distanceFromCamera );
+        chooseMapMesh.position.set( retryPadding, 0, -distanceFromCamera );
+
+        this.m_RetryButtonObjects.push(retryMesh);
+        this.m_RetryButtonObjects.push(chooseMapMesh);
+
+        this.m_Camera.add(retryMesh);
+        this.m_Camera.add(chooseMapMesh);
     }
 
     retryMap() {
@@ -944,155 +920,258 @@ class AlgoMission {
     }
 
     removeDeathScreen() {
-        var fadeStep = 0.1;
-        var fadePauseMs = 100;
-        var fade = 1.0;
-        var self = this;
-        (function fadeDivs() {
-            document.getElementById("deathScreen").style.opacity = fade;
+        this.removeRetryButtons();
+     }
 
-            // we only want to unfade the control panel on a retry (not map select)
-            if (self.m_State != AlgoMission.TAppState.SELECTMAP) {
-                self.m_ControlPanel.setWindowOpacity(1.0 - fade);
-                self.m_InstructionMgr.setWindowOpacity(1.0 - fade);
-            }
-            fade -= fadeStep;
-            if (fade > 0) {
-                setTimeout(fadeDivs, fadePauseMs);
-            }
-            else {
-                document.getElementById("deathScreen").remove();
-                console.log("removing death screen");
-            }
-        })();
+    getBestSelectMapScreenWidth( distance ) {
+
+        let screenHeight = this.getScreenHeightAtCameraDistance( distance );
+
+        // We want enough vertical space for, say, 2 maps high (so we can add arrows)
+        // so limit the aspect ratio if necessary
+        let aspect = Math.min( 1.5, this.m_Camera.aspect );
+
+        let screenWidth = screenHeight * aspect;
+        
+        return screenWidth;
+    }
+
+    getScreenWidthAtCameraDistance( distance, height ) {
+        var visibleWidth = height * this.m_Camera.aspect;
+        return visibleWidth;
+    }
+
+    getScreenHeightAtCameraDistance( distance ) {
+        var vFOV = THREE.MathUtils.degToRad( this.m_Camera.fov ); // convert vertical fov to radians
+        var height = 2 * Math.tan( vFOV / 2 ) * distance; 
+        return height;
     }
 
     displayMapScreen() {
-        var mapInfo = this.m_MapManager.getMapInfo();
-        var mapText =
-            "<table id='missionTable' width='100%' border='0' style='display:block;'>" +
-            "<thead style='display:block;position: sticky;top:0;; background-color: grey;display:block;'>" +
-            "<tr>" +
-            "<td width='100%'>" +
-            "<b>Hello bus driver. Please select a mission to try!<b>" +
-            "</td>" +
-            "</tr>" +
-            "</thead>" +
-            "<tbody>";
-
-        for (var i = 0; i < mapInfo.length; ++i) {
-            var difficulty = "beginner";
-            switch (mapInfo[i].difficulty) {
-                case 1:
-                    difficulty = "beginner";
-                    break;
-                case 2:
-                    difficulty = "normal";
-                    break;
-                case 3:
-                    difficulty = "expert";
-                    break;
-                default:
-                    difficulty = "beginner";
-            }
-            mapText += "<tr>";
-            mapText += "<td id='" + mapInfo[i].mapid + "' width='30%'>" + "Mission: <b>" + mapInfo[i].name + "<b></td>";
-            mapText += "<td width='70%'><i>" + mapInfo[i].instructions + "</i> (" + difficulty + ")</td>";
-            mapText += "</tr>";
-        }
-        mapText += "</tbody>";
-
-        var css = 'table tr:hover{ background-color: #00ff00 }';
-        var style = document.createElement('style');
-        if (style.styleSheet) {
-            style.styleSheet.cssText = css;
-        } else {
-            style.appendChild(document.createTextNode(css));
-        }
-        document.getElementsByTagName('head')[0].appendChild(style);
-
-        var loadDiv = document.createElement('div');
-        loadDiv.id = "mapScreen";
-        loadDiv.style.cssText =
-            "opacity: 0;" +
-            "background-image: url('./images/retry.jpg');" +
-            "background-repeat: no-repeat;" +
-            "background-size: cover;" +
-            "width: 60%;" +
-            "height: 80%;" +
-            "top: 50%;" +
-            "left: 50%;" +
-            "transform: translate(-50%, -50%); " + 	// makes sure we're dead center
-            "text-align: left;" +
-            "color: White;" +
-            "overflow: auto;" +
-            "position: fixed;" +
-            "font: 12px arial,serif;" +
-            "display:inline-block;" +
-            "}";
-
-        loadDiv.innerHTML = mapText;
-
-        document.body.appendChild(loadDiv);
-
-        this.addMissionSelectRowHandlers();
-
-        var fadeStep = 0.05;
-        var fadePauseMs = 100;
-        var fade = 0.0;
-
-        (function fadeDivs() {
-            document.getElementById("mapScreen").style.opacity = fade;
-
-            fade += fadeStep;
-            if (fade < 1.0) {
-                setTimeout(fadeDivs, fadePauseMs);
-            }
-        })();
+        this.m_SelectedMap = -1;
+        this.loadMapSelectModels( this.m_GLTFLoader );
+        this.waitForMapSelectLoad( this.runMapSelectScreen.bind(this), this );
     }
 
-    addMissionSelectRowHandlers() {
-        var table = document.getElementById("missionTable");
-        var rows = table.getElementsByTagName("tr");
-        var self = this;
-        for (var i = 0; i < rows.length; i++) {
-            var currentRow = table.rows[i];
-
-            var createClickHandler =
-                function (row) {
-                    return function () {
-                        var cell = row.getElementsByTagName("td")[0];
-                        if (cell.id != "") {
-                            self.m_SelectedMap = cell.id;
-                        }
-                        console.log("selected map:" + self.m_SelectedMap);
-                    };
-                };
-
-            currentRow.onclick = createClickHandler(currentRow);
+    loadMapSelectModels( glTFLoader ) {
+        if( this.m_ArrowLoaded == false ) {
+            this.loadModel( "./models/Arrow_JakobHenerey/scene.gltf", glTFLoader, this.arrowCreatedCb.bind(this) );
         }
+        console.log("Arrow_JakobHenerey ending");
+    }
+
+    arrowCreatedCb( obj ) {
+        var threeGroup = obj.scene;
+        var object3d  = threeGroup.getObjectByName( "OSG_Scene" );
+       // this.m_Arrow = object3d;
+
+        object3d.scale.set(0.5, 0.5, 0.5);
+        object3d.rotation.set( 0, 1.6, 0 );
+
+        this.m_ArrowHeightOffset = this.calculateArrowHeightOffset( object3d );
+
+
+        // TODO - hack for now, figure out correct way to do this
+        this.m_PrevArrow = object3d.clone();
+        this.m_PrevArrow.children[0].children[0].children[0].children[0].name = "mapSelectPrevArrow";
+        
+        // TODO - hack for now, figure out correct way to do this
+        this.m_NextArrow = object3d.clone();
+        this.m_NextArrow.children[0].children[0].children[0].children[0].name = "mapSelectNextArrow";
+
+        this.m_ArrowLoaded = true;
+    }
+    
+    calculateArrowHeightOffset( arrow ) {
+        let arrowHeightOffset = 0;
+        arrow.traverse( function( node ) {
+
+            if ( node.type == "Mesh" ) { //node instanceof THREE.Mesh ) {
+                const box = new THREE.Box3();
+                box.copy( node.geometry.boundingBox ).applyMatrix4( node.matrixWorld );
+                let arrowSize = new THREE.Vector3();
+                box.getSize( arrowSize );
+                arrowHeightOffset = (arrowSize.y / 2);  
+            }
+        } );
+
+        return arrowHeightOffset;
+    }
+
+    waitForMapSelectLoad(isCreatedCallback, context) {
+        var waitForAll = setInterval(function () {
+          if (context.m_ArrowLoaded == true ) {
+            clearInterval(waitForAll);
+            isCreatedCallback();
+          }
+        }, 100);
+        console.log("waitForArrowLoad ending");
+    }
+
+    runMapSelectScreen() {
+
+        // remove any old map meshes
+        this.removeMapSelectionMeshes();
+
+        let distanceFromCamera = 10;
+        let selectMapScreenSize = this.getBestSelectMapScreenWidth( distanceFromCamera );
+
+        let numMapsPerPage = 3;
+        if( this.m_MapManager.jsonMaps.length < numMapsPerPage ) {
+            numMapsPerPage = this.m_MapManager.jsonMaps.length;
+        }
+
+        let mapSpacing = selectMapScreenSize * 0.05; // 5% spacing
+
+        let spaceForSpacing = ((numMapsPerPage+1) * mapSpacing);
+
+        let thumbnailWidth = (selectMapScreenSize-spaceForSpacing) / numMapsPerPage;
+
+        // camera coordinates, 0,0 is center, so need to offset
+        let xOffset = -(selectMapScreenSize/2) + mapSpacing;   // .. as camera 0,0 is middle of screen
+        xOffset += (thumbnailWidth/2);                         // .. as coordinates are in middle of tile
+        let yOffset = 0;                                       // fine, keep it in the middle
+
+        let currentMapOffset = Math.max(this.m_MapSelectIndex, 0);
+ 
+        this.displayMapSet( numMapsPerPage, currentMapOffset, xOffset, thumbnailWidth, mapSpacing, distanceFromCamera );
     }
 
     removeMapScreen() {
-        var fadeStep = 0.1;
-        var fadePauseMs = 100;
-        var fade = 1.0;
-        var self = this;
-        (function fadeDivs() {
-            document.getElementById("mapScreen").style.opacity = fade;
+        this.removeMapSelectionMeshes();
+        this.m_ArrowsSpinning = false;
 
-            self.m_ControlPanel.setWindowOpacity(1.0 - fade);
-            self.m_InstructionMgr.setWindowOpacity(1.0 - fade);
+        // Until we sort the instruction panel / control panel too;
+            var fadeStep = 0.1;
+            var fadePauseMs = 100;
+            var fade = 1.0;
+            var self = this;
+            (function fadeDivs() {
+                self.m_ControlPanel.setWindowOpacity(1.0 - fade);
+                self.m_InstructionMgr.setWindowOpacity(1.0 - fade);
+    
+                fade -= fadeStep;
+                if (fade > 0) {
+                    setTimeout(fadeDivs, fadePauseMs);
+                }
+            })();
+    }
 
-            fade -= fadeStep;
-            if (fade > 0) {
-                setTimeout(fadeDivs, fadePauseMs);
+    removeMapSelectionMeshes( ) {
+        for( var i = 0; i < this.m_MapSelectionObjects.length; i++ ) {
+            this.m_Camera.remove( this.m_MapSelectionObjects[i] );
+        }
+        this.m_MapSelectionObjects = [];
+
+        this.m_Camera.remove( this.m_Camera.getObjectByName("mapSelectSpotlight") );
+    }
+
+    removeRetryButtons() {
+        for( var i = 0; i < this.m_RetryButtonObjects.length; i++ ) {
+            this.m_Camera.remove( this.m_RetryButtonObjects[i] );
+        }
+        this.m_RetryButtonObjects = [];
+    }
+
+    displayMapSet( numToShow, firstId, xOffset, thumbnailWidth, mapSpacing, distanceFromCamera ) {
+        let screenOrder = 0;
+        let thumbnailHeight = thumbnailWidth;
+        var mapIdx = firstId;
+        let mapY = 0;
+        for( ; mapIdx < (numToShow+firstId); ++mapIdx ) {
+            var mapDef = this.m_MapManager.jsonMaps[ mapIdx ];
+            if( !mapDef.hasOwnProperty('thumbnailTexture') ) {
+                console.log("WARNING: Map " + mapIdx + " lacks a thumbnail");
+                continue;
             }
-            else {
-                document.getElementById("mapScreen").remove();
-                console.log("removing map screen");
-            }
-        })();
+
+            this.addMapSelectThumbnail( mapDef, mapIdx, thumbnailWidth, thumbnailHeight, screenOrder, mapSpacing, xOffset, mapY, distanceFromCamera );
+            screenOrder++;
+        }
+
+        let arrowYOffset = mapY + (thumbnailWidth/2) + this.m_ArrowHeightOffset; 
+
+        if( mapIdx < this.m_MapManager.jsonMaps.length ) {
+            this.addMapSelectArrow( this.m_NextArrow, "mapSelectNextArrow", 3, -(arrowYOffset), -distanceFromCamera, 1.6 )
+        }
+
+        if( firstId > 0 ) {
+            this.addMapSelectArrow( this.m_PrevArrow, "mapSelectPrevArrow", -3, -(arrowYOffset), -distanceFromCamera, -1.6 )
+        }
+
+        // Set the arrows spinning only once per 'selectLevel' state
+        if( !this.m_ArrowsSpinning ) {
+
+            this.m_ArrowsSpinning = true;
+
+            let instance = this;
+            let animDelayMs = 10;
+            let rotateStep = 0.01;
+            (function animateArrowSpin() {
+                // Spin while on select screen and has parent (i.e. camera)
+                if (instance.m_State == AlgoMission.TAppState.SELECTMAP ) 
+                {
+                    instance.m_NextArrow.rotation.x = instance.m_NextArrow.rotation.x - rotateStep;
+                    instance.m_PrevArrow.rotation.x = instance.m_PrevArrow.rotation.x - rotateStep;
+    
+                    setTimeout(animateArrowSpin, animDelayMs);
+                }
+            })();
+        }
+
+        let spotlight = new THREE.SpotLight( 0xffffff, 1, 0, Math.PI/2  );
+        spotlight.position.set(0,0,distanceFromCamera+1);
+        spotlight.target = this.m_NextArrow;
+        spotlight.name = "mapSelectSpotlight";
+        this.m_Camera.add(spotlight);
+    }
+
+    addMapSelectThumbnail( mapDef, mapIdx, thumbnailWidth, thumbnailHeight, screenOrder, mapSpacing, xOffset, mapY, distanceFromCamera ) {
+
+        let mapSelectGroup = new THREE.Group();
+
+        var thumbnailTexture = mapDef.thumbnailTexture;
+    
+        let planeGeo = new THREE.PlaneGeometry(thumbnailWidth, thumbnailHeight);
+        let material = new THREE.MeshBasicMaterial( { side:THREE.DoubleSide, map:thumbnailTexture, transparent:false, opacity:0.5 } );
+        let thumbMesh = new THREE.Mesh(planeGeo, material);
+
+        let mapX = (screenOrder * thumbnailWidth) + (screenOrder * mapSpacing);
+        mapX += xOffset;    // center
+        
+        thumbMesh.position.set( mapX, mapY, -distanceFromCamera );
+        thumbMesh.name = mapIdx;
+        
+        mapSelectGroup.add(thumbMesh);
+
+        // Add map Id text
+        let mapIdTextHeight = 0.75;
+        let mapIdText = "Map #" + mapIdx + ": " +  mapDef.name;
+        let mapIdMsgMesh = this.messageToMesh(mapIdText, mapIdTextHeight, 0xFFFFFF, undefined);
+        mapIdMsgMesh.position.set( thumbMesh.position.x, thumbMesh.position.y+(thumbnailHeight/2)+mapIdTextHeight, -(distanceFromCamera) );
+        mapIdMsgMesh.name = mapIdx;
+        mapSelectGroup.add( mapIdMsgMesh );
+
+        // Add map descriptive text
+        let mapDescrTextHeight = 0.4;
+        let mapDescrText = mapDef.instructions;
+        let mapDescrMesh = this.messageToMesh(mapDescrText, mapDescrTextHeight, 0xFFFFFF, undefined);
+        mapDescrMesh.position.set( thumbMesh.position.x, thumbMesh.position.y-(thumbnailHeight/2)-mapDescrTextHeight, -(distanceFromCamera) );
+        mapDescrMesh.name = mapIdx;
+        mapSelectGroup.add( mapDescrMesh );
+
+        this.m_MapSelectionObjects.push(mapSelectGroup);
+        this.m_Camera.add(mapSelectGroup);
+    }
+
+    addMapSelectArrow( arrow, name, xPos, yPos, zPos, yRot ) {
+        arrow.scale.set(0.5,0.5,0.5);
+        arrow.rotation.set( 0, yRot, 0 );
+        arrow.position.set( xPos, yPos, zPos );
+        arrow.name = name;
+        
+        this.m_MapSelectionObjects.push(arrow);
+        this.m_Camera.add(arrow);
     }
 
     setupCollisionDetection() {
@@ -1159,12 +1238,42 @@ class AlgoMission {
     }
 
     onDocumentMouseDown(event) {
+
         event.preventDefault();
 
         // If we're on the winner screen, then a click just means
         // select next map - don't detect any other button presses
         if( this.m_State == AlgoMission.TAppState.WIN ) {
             this.m_SelectMap = true;
+            return;
+        }
+
+        if( this.m_State == AlgoMission.TAppState.SELECTMAP ) {
+
+            let mapSelected = this.detectMapSelection(event.clientX, event.clientY, this.m_Raycaster );
+            if( mapSelected == "mapSelectPrevArrow" ) {
+                this.m_MapSelectIndex = Math.max(0, this.m_MapSelectIndex-3);
+                this.displayMapScreen();
+            }
+            else if( mapSelected == "mapSelectNextArrow" ) {
+                this.m_MapSelectIndex = Math.min(this.m_MapManager.jsonMaps.length-3, this.m_MapSelectIndex+3);
+                this.displayMapScreen();
+            }
+            if( mapSelected > -1 ) {
+                this.m_SelectedMap = mapSelected;
+            }
+
+            return;
+        }
+
+        if( this.m_State == AlgoMission.TAppState.DEAD ) {
+            let buttonSelected = this.detectRetrySelection( event.clientX, event.clientY, this.m_Raycaster );
+            if( buttonSelected == "retryButton" ) {
+                this.m_Retry = true;
+            }
+            else if( buttonSelected == "chooseMapButton" ) {
+                this.m_SelectMap = true;
+            }
             return;
         }
 
@@ -1194,7 +1303,6 @@ class AlgoMission {
                     if (!this.m_InstructionMgr.isRunning() && this.m_InstructionMgr.numInstructions() > 0) {
                         this.m_InstructionMgr.startInstructions();
                         this.m_Bot.prepareForNewInstruction();
-                        this.m_MapManager.handleNewInstruction();
                     }
                 }
                 else if (instructionClicked == InstructionManager.instructionConfig.GRID) {
@@ -1209,6 +1317,61 @@ class AlgoMission {
 
         this.m_InstructionMgr.updateWindow();
     }
+
+	/**
+	* detectMapSelection()
+	*
+	*
+	*/
+	detectMapSelection(xPos, yPos, raycaster) {
+        let selection = -1;
+
+        if (typeof (raycaster) == "undefined") {
+			return selection;
+		}
+
+        var mouse = new THREE.Vector2(); // TODO: create once
+    
+        mouse.x = ( xPos / this.m_Renderer.domElement.clientWidth ) * 2 - 1;
+        mouse.y = - ( yPos / this.m_Renderer.domElement.clientHeight ) * 2 + 1;
+        
+        raycaster.setFromCamera( mouse, this.m_Camera );
+        
+        //var mapSelectionObjects = []
+        //TODO - lookup and add all Map selection objects to mapSelectionObjects
+        // rather than store in member var
+
+        var intersects = raycaster.intersectObjects( this.m_MapSelectionObjects );
+
+        if( intersects.length > 0 ) {
+            selection = intersects[0].object.name;
+        }
+
+		return selection;
+	}
+
+    detectRetrySelection( xPos, yPos, raycaster) {
+        let selection = -1;
+
+        if (typeof (raycaster) == "undefined") {
+			return selection;
+		}
+
+        var mouse = new THREE.Vector2(); // TODO: create once
+    
+        mouse.x = ( xPos / this.m_Renderer.domElement.clientWidth ) * 2 - 1;
+        mouse.y = - ( yPos / this.m_Renderer.domElement.clientHeight ) * 2 + 1;
+        
+        raycaster.setFromCamera( mouse, this.m_Camera );
+
+        var intersects = raycaster.intersectObjects( this.m_RetryButtonObjects );
+
+        if( intersects.length > 0 ) {
+            selection = intersects[0].object.name;
+        }
+
+		return selection;
+	}
 
     toggleGridHelper() {
         if (this.m_GridHelperObject == null || this.m_Scene.getObjectByName("GridHelper") == null) {

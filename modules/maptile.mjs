@@ -39,6 +39,19 @@ import * as THREE from 'https://cdn.skypack.dev/pin/three@v0.135.0-pjGUcRG9Xt70O
         this.m_TileMesh.position.set( x, y, z );
     }
 
+    setRelativePosition( layoutX, layoutZ ) {
+        this.layoutX = layoutX;
+        this.layoutZ = layoutZ;
+    }
+
+    getRelativePositionX() {
+        return this.layoutX;
+    }
+
+    getRelativePositionZ() {
+        return this.layoutZ;
+    }
+
     setTileRole( role ) {
         if( role ) {
             this.m_Role = role;
