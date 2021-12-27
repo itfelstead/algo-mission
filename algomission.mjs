@@ -108,6 +108,8 @@ class AlgoMission {
         this.m_PrevArrow = null;
         this.m_ArrowLoaded = false;
         this.m_ArrowsSpinning = false;
+
+        this.m_RetryButtonObjects = [];
     }
 
     updateScore( delta ) {
@@ -874,73 +876,39 @@ class AlgoMission {
     }
 
     displayDeathScreen() {
-        var loadDiv = document.createElement('div');
 
-        loadDiv.id = "deathScreen";
-        loadDiv.style.cssText =
-            "opacity: 0;" +
-            "background-image: url('./images/retry.jpg');" +
-            "background-repeat: no-repeat;" +
-            "background-size: cover;" +
-            "width: 50%;" +
-            "height: 50%;" +
-            "top: 50%;" +
-            "left: 50%;" +
-            "transform: translate(-50%, -50%); " + 	// makes sure we're dead center
-            "text-align: center;" +
-            "color: White;" +
-            "overflow: auto;" +
-            "position: fixed;" +
-            "font: 20px arial,serif;" +
-            "display:inline-block;" +
-            "}";
-        loadDiv.innerHTML = "Oops!... <p></p>";
+        let distanceFromCamera = 10;
+        let textHeight = 1;
 
-        var retryButtonElement = document.createElement("button");
-        retryButtonElement.onclick = this.retryMap.bind(this);
-        retryButtonElement.id = "retryButton";
-        retryButtonElement.textContent = "Try Again";
-        retryButtonElement.style.cssText =
-            "width: 25%;" +
-            "height: 20%;" +
-            "margin-left: 0%;" +
-            "position: relative;" +
-            "top: 0%;" +
-            "font: 24px arial,serif;";
-        loadDiv.appendChild(retryButtonElement);
+        let retryMesh = this.messageToMesh("Try again?", textHeight, 0xFFFFFF, undefined);
+        retryMesh.name = "retryButton";
 
-        var selectButtonElement = document.createElement("button");
-        selectButtonElement.onclick = this.selectMap.bind(this);
-        selectButtonElement.id = "selectButton";
-        selectButtonElement.textContent = "Change Mission";
-        selectButtonElement.style.cssText =
-            "width: 25%;" +
-            "height: 20%;" +
-            "margin-right: 0%;" +
-            "position: relative;" +
-            "top: -3%;" +
-            "font: 24px arial,serif;";
-        loadDiv.appendChild(selectButtonElement);
+        let chooseMapMesh = this.messageToMesh("Choose map", textHeight, 0xFFFFFF, undefined);
+        chooseMapMesh.name = "chooseMapButton";
 
-        document.body.appendChild(loadDiv);
+        let box = new THREE.Box3().setFromObject( retryMesh );
+        let dimensions = new THREE.Vector3();
+        box.getSize(dimensions);
+        let retryWidth = dimensions.x;
 
-        var fadeStep = 0.07;
-        var fadePauseMs = 100;
-        var fade = 0.0;
-        var self = this;
-        (function fadeDivs() {
-            document.getElementById("deathScreen").style.opacity = fade;
 
-            if (self.m_ControlPanel != null && self.m_InstructionMgr != null) {
-                self.m_ControlPanel.setWindowOpacity(1.0 - fade);
-                self.m_InstructionMgr.setWindowOpacity(1.0 - fade);
-            }
+        box = new THREE.Box3().setFromObject( chooseMapMesh );
+        dimensions = new THREE.Vector3();
+        box.getSize(dimensions);
+    
+        let screenWidth = this.getBestSelectMapScreenWidth(distanceFromCamera);
 
-            fade += fadeStep;
-            if (fade < 1.0) {
-                setTimeout(fadeDivs, fadePauseMs);
-            }
-        })();
+        let halfScreen = (screenWidth/2);    // as it is 0 centered
+        let retryPadding = (halfScreen - retryWidth) / 2;
+
+        retryMesh.position.set( -(halfScreen-retryPadding), 0, -distanceFromCamera );
+        chooseMapMesh.position.set( retryPadding, 0, -distanceFromCamera );
+
+        this.m_RetryButtonObjects.push(retryMesh);
+        this.m_RetryButtonObjects.push(chooseMapMesh);
+
+        this.m_Camera.add(retryMesh);
+        this.m_Camera.add(chooseMapMesh);
     }
 
     retryMap() {
@@ -952,28 +920,8 @@ class AlgoMission {
     }
 
     removeDeathScreen() {
-        var fadeStep = 0.1;
-        var fadePauseMs = 100;
-        var fade = 1.0;
-        var self = this;
-        (function fadeDivs() {
-            document.getElementById("deathScreen").style.opacity = fade;
-
-            // we only want to unfade the control panel on a retry (not map select)
-            if (self.m_State != AlgoMission.TAppState.SELECTMAP) {
-                self.m_ControlPanel.setWindowOpacity(1.0 - fade);
-                self.m_InstructionMgr.setWindowOpacity(1.0 - fade);
-            }
-            fade -= fadeStep;
-            if (fade > 0) {
-                setTimeout(fadeDivs, fadePauseMs);
-            }
-            else {
-                document.getElementById("deathScreen").remove();
-                console.log("removing death screen");
-            }
-        })();
-    }
+        this.removeRetryButtons();
+     }
 
     getBestSelectMapScreenWidth( distance ) {
 
@@ -1116,6 +1064,13 @@ class AlgoMission {
         this.m_MapSelectionObjects = [];
 
         this.m_Camera.remove( this.m_Camera.getObjectByName("mapSelectSpotlight") );
+    }
+
+    removeRetryButtons() {
+        for( var i = 0; i < this.m_RetryButtonObjects.length; i++ ) {
+            this.m_Camera.remove( this.m_RetryButtonObjects[i] );
+        }
+        this.m_RetryButtonObjects = [];
     }
 
     displayMapSet( numToShow, firstId, xOffset, thumbnailWidth, mapSpacing, distanceFromCamera ) {
@@ -1296,7 +1251,6 @@ class AlgoMission {
         if( this.m_State == AlgoMission.TAppState.SELECTMAP ) {
 
             let mapSelected = this.detectMapSelection(event.clientX, event.clientY, this.m_Raycaster );
-            console.log("ITF: Map selection clik on " + mapSelected);
             if( mapSelected == "mapSelectPrevArrow" ) {
                 this.m_MapSelectIndex = Math.max(0, this.m_MapSelectIndex-3);
                 this.displayMapScreen();
@@ -1309,6 +1263,17 @@ class AlgoMission {
                 this.m_SelectedMap = mapSelected;
             }
 
+            return;
+        }
+
+        if( this.m_State == AlgoMission.TAppState.DEAD ) {
+            let buttonSelected = this.detectRetrySelection( event.clientX, event.clientY, this.m_Raycaster );
+            if( buttonSelected == "retryButton" ) {
+                this.m_Retry = true;
+            }
+            else if( buttonSelected == "chooseMapButton" ) {
+                this.m_SelectMap = true;
+            }
             return;
         }
 
@@ -1385,6 +1350,28 @@ class AlgoMission {
 		return selection;
 	}
 
+    detectRetrySelection( xPos, yPos, raycaster) {
+        let selection = -1;
+
+        if (typeof (raycaster) == "undefined") {
+			return selection;
+		}
+
+        var mouse = new THREE.Vector2(); // TODO: create once
+    
+        mouse.x = ( xPos / this.m_Renderer.domElement.clientWidth ) * 2 - 1;
+        mouse.y = - ( yPos / this.m_Renderer.domElement.clientHeight ) * 2 + 1;
+        
+        raycaster.setFromCamera( mouse, this.m_Camera );
+
+        var intersects = raycaster.intersectObjects( this.m_RetryButtonObjects );
+
+        if( intersects.length > 0 ) {
+            selection = intersects[0].object.name;
+        }
+
+		return selection;
+	}
 
     toggleGridHelper() {
         if (this.m_GridHelperObject == null || this.m_Scene.getObjectByName("GridHelper") == null) {
