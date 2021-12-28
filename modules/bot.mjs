@@ -425,26 +425,30 @@ class Bot {
 
     this.audioBusFall.play();
 
-    var quaternion = new THREE.Quaternion()
-    this.mesh.getWorldQuaternion( quaternion )
-    let wayFacing = new THREE.Euler()
-    wayFacing.setFromQuaternion(quaternion)
+    // direction of spin depends on which way we're facing 
+    // AND which direction we're travelling in..
 
-    if (wayFacing.y < 0) {
-      if (wayFacing.y >= -2 && wayFacing.y <= -1) {
-        this.deathSpin = Bot.TDeathSpin.RIGHT;
-      }
-      else {
-        this.deathSpin = Bot.TDeathSpin.BACK;
-      }
+    var worldRotation = new THREE.Quaternion();
+    this.mesh.getWorldQuaternion( worldRotation );
+    let normYRot = worldRotation.y;
+
+    let currentInstruction = this.gameMgr.getInstructionMgr().currentInstruction();
+    let flipDirection = false;
+    if( currentInstruction == InstructionManager.instructionConfig.BACK ) {
+      flipDirection = true;
+    }
+
+    if(normYRot == 0 ) {
+      this.deathSpin = (flipDirection ? Bot.TDeathSpin.BACK : Bot.TDeathSpin.FORWARDS);
+    }
+    else if( normYRot == 1 ) {
+      this.deathSpin = (flipDirection ? Bot.TDeathSpin.FORWARDS : Bot.TDeathSpin.BACK);
+    }
+    else if( normYRot < 0 ) {
+      this.deathSpin = (flipDirection ? Bot.TDeathSpin.LEFT : Bot.TDeathSpin.RIGHT);
     }
     else {
-      if (wayFacing.y >= 1 && wayFacing.y <= 2) {
-        this.deathSpin = Bot.TDeathSpin.LEFT;
-      }
-      else {
-        this.deathSpin = Bot.TDeathSpin.FORWARD;
-      }
+      this.deathSpin = (flipDirection ? Bot.TDeathSpin.RIGHT : Bot.TDeathSpin.LEFT);
     }
   }
 
