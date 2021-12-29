@@ -361,6 +361,7 @@ class AlgoMission {
                 this.m_Win = 0;
                 break;
             case AlgoMission.TAppState.READY:
+                this.m_ControlPanel.addButtons( this.m_Camera );
                 break;
             case AlgoMission.TAppState.RUNNING:
                 break;
@@ -384,6 +385,7 @@ class AlgoMission {
             case AlgoMission.TAppState.INITIAL:
                 break;
             case AlgoMission.TAppState.READY:
+                this.m_ControlPanel.removeButtons( this.m_Camera );
                 break;
             case AlgoMission.TAppState.RUNNING:
                 break;
@@ -503,6 +505,8 @@ class AlgoMission {
         this.m_Camera.position.set(0, 60, -40);
         this.m_Camera.lookAt(new THREE.Vector3(0, 0, 0));
         this.m_Scene.add(this.m_Camera);
+
+        this.handleResize();    // make sure camera is using current window size
     }
 
     addMouseControls() {
@@ -614,8 +618,14 @@ class AlgoMission {
     }
 
     addControlPanel(instructionMgr, textureLoader) {
-        this.m_ControlPanel = new ControlPanel();
-        this.m_ControlPanel.addControlPanel(this.m_Camera.up, instructionMgr, textureLoader);
+        this.m_ControlPanel = new ControlPanel(this.m_Camera);
+
+        let distanceFromCamera = 10;
+
+		const screenHeight = this.getScreenHeightAtCameraDistance( distanceFromCamera );
+        const screenWidth = this.getScreenWidthAtCameraDistance( distanceFromCamera, screenHeight );
+
+        this.m_ControlPanel.createControlPanel(instructionMgr, textureLoader, screenWidth, screenHeight, distanceFromCamera );
     }
 
     addEventListeners() {
@@ -753,7 +763,7 @@ class AlgoMission {
         this.m_Trophy.position.set( 0, -1, startZ );     // note; start behind camera (Z) for later zoom
         this.m_Camera.add(this.m_Trophy);
 
-        let trophySpotlight = new THREE.SpotLight( 0xffffff );
+        let trophySpotlight = new THREE.SpotLight( 0xffffff, 1, 10 );
         trophySpotlight.position.set(0,0,1);
         trophySpotlight.target = this.m_Trophy;
         trophySpotlight.name = "trophySpotlight";
@@ -1047,7 +1057,6 @@ class AlgoMission {
             var fade = 1.0;
             var self = this;
             (function fadeDivs() {
-                self.m_ControlPanel.setWindowOpacity(1.0 - fade);
                 self.m_InstructionMgr.setWindowOpacity(1.0 - fade);
     
                 fade -= fadeStep;
@@ -1216,7 +1225,6 @@ class AlgoMission {
 
     render() {
         this.m_Renderer.render(this.m_Scene, this.m_Camera);
-        this.m_ControlPanel.render();
     }
 
     handleResize() {
@@ -1285,7 +1293,7 @@ class AlgoMission {
         if( this.m_State == AlgoMission.TAppState.READY ) {
             var instructionsUpdated = 0;
             var instructionClicked =
-                this.m_ControlPanel.detectInstructionPress(event.clientX, event.clientY,
+                this.detectInstructionPress(event.clientX, event.clientY,
                     mainElement.clientHeight, this.m_Raycaster);
 
             if (instructionClicked) {
@@ -1371,6 +1379,44 @@ class AlgoMission {
         }
 
 		return selection;
+	}
+
+    /**
+	* detectInstructionPress()
+	*
+	*
+	*/
+	detectInstructionPress(xPos, yPos, parentHeight, raycaster) {
+		var instructionClicked;
+
+		if (typeof (raycaster) == "undefined") {
+			return;
+		}
+
+        var mouse = new THREE.Vector2(); // TODO: create once
+    
+        mouse.x = ( xPos / this.m_Renderer.domElement.clientWidth ) * 2 - 1;
+        mouse.y = - ( yPos / this.m_Renderer.domElement.clientHeight ) * 2 + 1;
+
+		raycaster.setFromCamera(mouse, this.m_Camera);
+
+
+		var activeButtons = this.m_ControlPanel.getActiveButtons();
+        var buttonObjects = [];
+		for (var key in activeButtons) {
+			var mesh = activeButtons[key];
+
+			buttonObjects.push(mesh);
+		}
+        
+		var buttonIntersects = raycaster.intersectObjects(buttonObjects);
+
+		if (buttonIntersects.length > 0) {
+			// Intersection detected
+			instructionClicked = buttonIntersects[0].object.name;
+		}
+
+		return instructionClicked;
 	}
 
     toggleGridHelper() {
