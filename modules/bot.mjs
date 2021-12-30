@@ -60,7 +60,7 @@ class Bot {
     //
     this.gameMgr = gameMgr;
 
-    this.gameMgr.getMapManager().registerObserver(this);    // We want to know something of interest happens (e.g. moved tile)
+    this.gameMgr.registerObserver(this);    // to monitor for death state change
 
     this.audioBusHorn = null;
     this.audioBusMove = null;
@@ -96,13 +96,11 @@ class Bot {
   }
 
   updateTriggered(notificationType, notificationValue) {
-    console.log("Bot got an event from the map, " + notificationType + ", " + notificationValue );
-
-		if( notificationType == MapManager.TNotificationType.STATE_CHANGE ) {
-			if( notificationValue == MapManager.TState.DEAD ) {
+		if( notificationType == AlgoMission.TNotificationType.STATE_CHANGE ) {
+			if( notificationValue == AlgoMission.TAppState.DEAD ) {
 				this.botMapStatus = Bot.TBotMapState.BAD;
 			}
-			else if ( notificationValue == MapManager.TState.WIN ) {
+			else if ( notificationValue == AlgoMission.TAppState.WIN ) {
 				this.botMapStatus = Bot.TBotMapState.GOOD;
 			}
 		}

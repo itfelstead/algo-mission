@@ -37,6 +37,13 @@ class AlgoMission {
         SELECTMAP: 8
     };
 
+    // Observer notification types (central)
+	static TNotificationType = {
+        TILE_CHANGE:  0, 		// other param is tile role
+		SCORE_CHANGE: 1, 		// other param is score delta 			
+		STATE_CHANGE: 2 		// other param is win, die
+	};
+
     constructor() {
         this.m_State = AlgoMission.TAppState.INITIAL;
 
@@ -84,8 +91,6 @@ class AlgoMission {
         this.m_SelectMap = false;
         this.m_SelectedMap = -1;
 
-        this.m_Win = 0;
-
         // audio support
         this.m_AudioListener = null;
         this.m_AmbientButtonClickSound = null;
@@ -110,7 +115,56 @@ class AlgoMission {
         this.m_ArrowsSpinning = false;
 
         this.m_RetryButtonObjects = [];
+
+        this.m_Observers = [];
     }
+
+    // called by things that want to observe us
+    registerObserver(observer)
+	{
+		this.m_Observers.push(observer);
+	}
+
+    unregisterObserver()
+	{
+		this.m_Observers = this.m_Observers.filter(
+			function(existingObserver) {
+				if(existingObserver !== observer) {
+					return existingObserver;
+				}
+			}
+		);
+	}
+
+    notifyObservers(notificationType, notificationValue)
+	{
+		this.m_Observers.forEach(
+			function(observer) {
+				observer.updateTriggered( notificationType, notificationValue );
+			}
+		);
+	}
+
+    updateTriggered(notificationType, notificationValue) {
+        console.log("Window got an event from the map, " + notificationType + ", " + notificationValue);
+        
+        switch( notificationType ) {
+            case AlgoMission.TNotificationType.SCORE_CHANGE:
+                this.updateScore( notificationValue );
+            break;
+
+            case AlgoMission.TNotificationType.TILE_CHANGE:
+                // If the current tile is 'no tile', then we're in the air...
+                if( notificationValue == MapManager.NO_TILE ) {
+                    // Tell the bot the bad news... this in turn will trigger out own state change (once bot has finished dying)
+                    this.notifyObservers( AlgoMission.TNotificationType.STATE_CHANGE, AlgoMission.TAppState.DEAD );
+                }
+            break;
+
+            default:
+                console.log("unsupported notification: " + notificationType );
+        }
+    }  
 
     updateScore( delta ) {
         this.m_TotalScore = this.m_TotalScore + delta;
@@ -170,8 +224,6 @@ class AlgoMission {
         this.m_ScoreMesh.ctx.fillStyle = "#000000"; 
         this.m_ScoreMesh.ctx.fillRect( 0, 0, this.m_ScoreMesh.wPxAll, this.m_ScoreMesh.hPxAll );
         this.m_ScoreMesh.ctx.fillStyle = "#ffffff"; 
-        //console.log( "fillText(" + msg + ", " + this.m_ScoreMesh.wPxAll*.8, ", " + this.m_ScoreMesh.hPxAll*.5);
-        //this.m_ScoreMesh.ctx.fillText(msg,this.m_ScoreMesh.wPxAll*.8, this.m_ScoreMesh.hPxAll*.5);
         this.m_ScoreMesh.ctx.fillText(msg,this.m_ScoreMesh.wPxAll/2, this.m_ScoreMesh.hPxAll/2);
     }
 
@@ -204,18 +256,6 @@ class AlgoMission {
         //m_State = AlgoMission.TAppState.SELECTMAP;
         this.gameLoop(); 	// intial kickoff, subsequest calls via requestAnimationFrame()
     }
-
-    updateTriggered(notificationType, notificationValue) {
-        console.log("Window got an event from the map, " + notificationType + ", " + notificationValue);
-        if ( notificationType == MapManager.TNotificationType.STATE_CHANGE ) {
-            if ( notificationValue == MapManager.TState.WIN ) {
-                this.m_Win = 1;
-            }
-        }
-        else if( notificationType == MapManager.TNotificationType.SCORE_CHANGE ) {
-            this.updateScore( notificationValue );
-        }
-    }  
 
     actOnState() {
         switch (this.m_State) {
@@ -255,7 +295,8 @@ class AlgoMission {
 
                 this.m_InstructionMgr.clearInstructions();
                 this.m_InstructionMgr.updateWindow();
-                this.m_Win = 0;
+
+                this.m_MapManager.loadMap(this.m_SelectedMap, this.m_Scene);
 
                 this.m_Bot.respawnBot();
 
@@ -302,11 +343,14 @@ class AlgoMission {
                     newState = AlgoMission.TAppState.DEAD;
                 }
                 else if (this.m_InstructionMgr.isRunning() == false) {
-                    if (this.m_Win == 1) {
+                    
+                    if( this.m_MapManager.isCurrentMapComplete() ) {
+                        this.notifyObservers( AlgoMission.TNotificationType.STATE_CHANGE, AlgoMission.TAppState.WIN )
                         newState = AlgoMission.TAppState.WIN;
                     }
                     else {
-                        newState = AlgoMission.TAppState.READY;
+                        // Must complete with a single instruction set, so failed
+                        newState = AlgoMission.TAppState.DEAD;
                     }
                 }
                 else {
@@ -333,7 +377,7 @@ class AlgoMission {
                 break;
 
             case AlgoMission.TAppState.RETRY:
-                if (!this.m_Bot.isDead()) {
+                if (!this.m_Bot.isDead()) {     // waits for bot respawn
                     newState = AlgoMission.TAppState.READY;
                 }
                 break;
@@ -358,7 +402,6 @@ class AlgoMission {
     onEnterState() {
         switch (this.m_State) {
             case AlgoMission.TAppState.INITIAL:
-                this.m_Win = 0;
                 break;
             case AlgoMission.TAppState.READY:
                 this.m_ControlPanel.addButtons( this.m_Camera );
@@ -424,7 +467,7 @@ class AlgoMission {
 
         this.addMapManager(this.m_TextureLoader);
 
-        this.addInstructionManager(this.m_MapManager);
+        this.addInstructionManager(this);
 
         this.addControlPanel(this.m_InstructionMgr, this.m_TextureLoader);
 
@@ -753,8 +796,7 @@ class AlgoMission {
     }
 
     runWinnerScreen( ) {
-        console.log("runWinnerScreen called");
-
+ 
         var instance = this;
 
         this.m_WinnerSound.play();
@@ -1153,6 +1195,29 @@ class AlgoMission {
         
         mapSelectGroup.add(thumbMesh);
 
+        // Add highest score - TODO
+
+
+        // Add completion awards
+        let completionRate = this.m_MapManager.getCompletionRate(mapIdx);
+
+        if( completionRate > 0 ) {
+            let colour = 0xd9a004; // bronze
+            if( completionRate >= 1 ) {
+                colour = 0xdec990; // gold
+            }
+            else if( completionRate >= 0.5 ) {
+                colour = 0xe8e5dc; // silver
+            }
+
+            let spacing = 0.5;
+            const geometry = new THREE.CircleGeometry( 0.25, 16 );
+            const material = new THREE.MeshStandardMaterial( { color: colour } );
+            const awardMesh = new THREE.Mesh( geometry, material );
+            awardMesh.position.set( thumbMesh.position.x - (thumbnailWidth/2) + spacing, thumbMesh.position.y+(thumbnailHeight/2) - spacing, -(distanceFromCamera) )
+            mapSelectGroup.add( awardMesh );
+        }
+
         // Add map Id text
         let mapIdTextHeight = 0.75;
         let mapIdText = "Map #" + mapIdx + ": " +  mapDef.name;
@@ -1249,175 +1314,125 @@ class AlgoMission {
 
         event.preventDefault();
 
-        // If we're on the winner screen, then a click just means
-        // select next map - don't detect any other button presses
-        if( this.m_State == AlgoMission.TAppState.WIN ) {
-            this.m_SelectMap = true;
-            return;
-        }
+        this.handleClickByState( event );
+    }
 
-        if( this.m_State == AlgoMission.TAppState.SELECTMAP ) {
+    handleClickByState( event ) {
 
-            let mapSelected = this.detectMapSelection(event.clientX, event.clientY, this.m_Raycaster );
-            if( mapSelected == "mapSelectPrevArrow" ) {
-                this.m_MapSelectIndex = Math.max(0, this.m_MapSelectIndex-3);
-                this.displayMapScreen();
-            }
-            else if( mapSelected == "mapSelectNextArrow" ) {
-                this.m_MapSelectIndex = Math.min(this.m_MapManager.jsonMaps.length-3, this.m_MapSelectIndex+3);
-                this.displayMapScreen();
-            }
-            if( mapSelected > -1 ) {
-                this.m_SelectedMap = mapSelected;
-            }
-
-            return;
-        }
-
-        if( this.m_State == AlgoMission.TAppState.DEAD ) {
-            let buttonSelected = this.detectRetrySelection( event.clientX, event.clientY, this.m_Raycaster );
-            if( buttonSelected == "retryButton" ) {
-                this.m_Retry = true;
-            }
-            else if( buttonSelected == "chooseMapButton" ) {
-                this.m_SelectMap = true;
-            }
-            return;
-        }
-
-        var mainElement = document.getElementById("AlgoMission");
-        var mainWindowHeight = mainElement.clientHeight;
-
-        // Check for instruction button presses
-        //
-        if( this.m_State == AlgoMission.TAppState.READY ) {
-            var instructionsUpdated = 0;
-            var instructionClicked =
-                this.detectInstructionPress(event.clientX, event.clientY,
-                    mainElement.clientHeight, this.m_Raycaster);
-
-            if (instructionClicked) {
-                this.m_AmbientButtonClickSound.play();
-
-                // We handle CLEAR and GO here, others are added to the instruction list
-                if (instructionClicked == InstructionManager.instructionConfig.CLEAR) {
-                    if (!this.m_InstructionMgr.isRunning()) {
-                        this.m_InstructionMgr.clearInstructions();
-
+        switch( this.m_State ) {
+            case AlgoMission.TAppState.INITIAL:
+                // NOOP
+                break;
+            case AlgoMission.TAppState.READY:
+                var instructionsUpdated = 0;
+                var instructionClicked =
+                    this.detectInstructionPress(event.clientX, event.clientY, this.m_Raycaster);
+    
+                if (instructionClicked) {
+                    this.m_AmbientButtonClickSound.play();
+    
+                    // We handle CLEAR and GO here, others are added to the instruction list
+                    if (instructionClicked == InstructionManager.instructionConfig.CLEAR) {
+                        if (!this.m_InstructionMgr.isRunning()) {
+                            this.m_InstructionMgr.clearInstructions();
+    
+                            instructionsUpdated = 1;
+                        }
+                    }
+                    else if (instructionClicked == InstructionManager.instructionConfig.GO) {
+                        if (!this.m_InstructionMgr.isRunning() && this.m_InstructionMgr.numInstructions() > 0) {
+                            this.m_InstructionMgr.startInstructions();
+                            this.m_Bot.prepareForNewInstruction();
+                        }
+                    }
+                    else if (instructionClicked == InstructionManager.instructionConfig.GRID) {
+                        this.toggleGridHelper();
+                    }
+                    else {
+                        this.m_InstructionMgr.addInstruction(instructionClicked);
                         instructionsUpdated = 1;
                     }
                 }
-                else if (instructionClicked == InstructionManager.instructionConfig.GO) {
-                    if (!this.m_InstructionMgr.isRunning() && this.m_InstructionMgr.numInstructions() > 0) {
-                        this.m_InstructionMgr.startInstructions();
-                        this.m_Bot.prepareForNewInstruction();
-                    }
+                this.m_InstructionMgr.updateWindow();
+                break;
+            case AlgoMission.TAppState.RUNNING:
+                // NOOP
+                break;
+            case AlgoMission.TAppState.WIN:
+                // If we're on the winner screen, then a click just means
+                // select next map - don't detect any other button presses
+                this.m_SelectMap = true;
+                break;
+            case AlgoMission.TAppState.DEAD:
+                let buttonSelected = this.detectRetrySelection( event.clientX, event.clientY, this.m_Raycaster );
+                if( buttonSelected == "retryButton" ) {
+                    this.m_Retry = true;
                 }
-                else if (instructionClicked == InstructionManager.instructionConfig.GRID) {
-                    this.toggleGridHelper();
+                else if( buttonSelected == "chooseMapButton" ) {
+                    this.m_SelectMap = true;
                 }
-                else {
-                    this.m_InstructionMgr.addInstruction(instructionClicked);
-                    instructionsUpdated = 1;
+                break;
+            case AlgoMission.TAppState.RETRY:
+                // NOOP
+                break;
+            case AlgoMission.TAppState.SELECTMAP:
+                let mapSelected = this.detectMapSelection(event.clientX, event.clientY, this.m_Raycaster );
+                if( mapSelected == "mapSelectPrevArrow" ) {
+                    this.m_MapSelectIndex = Math.max(0, this.m_MapSelectIndex-3);
+                    this.displayMapScreen();
                 }
-            }
+                else if( mapSelected == "mapSelectNextArrow" ) {
+                    this.m_MapSelectIndex = Math.min(this.m_MapManager.jsonMaps.length-3, this.m_MapSelectIndex+3);
+                    this.displayMapScreen();
+                }
+                if( mapSelected > -1 ) {
+                    this.m_SelectedMap = mapSelected;
+                }
+                break;
         }
-
-        this.m_InstructionMgr.updateWindow();
     }
 
-	/**
-	* detectMapSelection()
-	*
-	*
-	*/
 	detectMapSelection(xPos, yPos, raycaster) {
-        let selection = -1;
-
-        if (typeof (raycaster) == "undefined") {
-			return selection;
-		}
-
-        var mouse = new THREE.Vector2(); // TODO: create once
-    
-        mouse.x = ( xPos / this.m_Renderer.domElement.clientWidth ) * 2 - 1;
-        mouse.y = - ( yPos / this.m_Renderer.domElement.clientHeight ) * 2 + 1;
-        
-        raycaster.setFromCamera( mouse, this.m_Camera );
-        
-        //var mapSelectionObjects = []
-        //TODO - lookup and add all Map selection objects to mapSelectionObjects
-        // rather than store in member var
-
-        var intersects = raycaster.intersectObjects( this.m_MapSelectionObjects );
-
-        if( intersects.length > 0 ) {
-            selection = intersects[0].object.name;
-        }
-
-		return selection;
-	}
+        return this.detectButtonPress( xPos, yPos, raycaster, this.m_MapSelectionObjects );
+    }
 
     detectRetrySelection( xPos, yPos, raycaster) {
-        let selection = -1;
+        return this.detectButtonPress( xPos, yPos, raycaster, this.m_RetryButtonObjects );
+    }
 
-        if (typeof (raycaster) == "undefined") {
-			return selection;
-		}
-
-        var mouse = new THREE.Vector2(); // TODO: create once
-    
-        mouse.x = ( xPos / this.m_Renderer.domElement.clientWidth ) * 2 - 1;
-        mouse.y = - ( yPos / this.m_Renderer.domElement.clientHeight ) * 2 + 1;
-        
-        raycaster.setFromCamera( mouse, this.m_Camera );
-
-        var intersects = raycaster.intersectObjects( this.m_RetryButtonObjects );
-
-        if( intersects.length > 0 ) {
-            selection = intersects[0].object.name;
-        }
-
-		return selection;
-	}
-
-    /**
-	* detectInstructionPress()
-	*
-	*
-	*/
-	detectInstructionPress(xPos, yPos, parentHeight, raycaster) {
-		var instructionClicked;
-
-		if (typeof (raycaster) == "undefined") {
-			return;
-		}
-
-        var mouse = new THREE.Vector2(); // TODO: create once
-    
-        mouse.x = ( xPos / this.m_Renderer.domElement.clientWidth ) * 2 - 1;
-        mouse.y = - ( yPos / this.m_Renderer.domElement.clientHeight ) * 2 + 1;
-
-		raycaster.setFromCamera(mouse, this.m_Camera);
-
-
-		var activeButtons = this.m_ControlPanel.getActiveButtons();
+	detectInstructionPress(xPos, yPos, raycaster) {
+        var activeButtons = this.m_ControlPanel.getActiveButtons();
         var buttonObjects = [];
 		for (var key in activeButtons) {
 			var mesh = activeButtons[key];
 
 			buttonObjects.push(mesh);
 		}
-        
-		var buttonIntersects = raycaster.intersectObjects(buttonObjects);
+        return this.detectButtonPress( xPos, yPos, raycaster, buttonObjects );
+    }
 
-		if (buttonIntersects.length > 0) {
-			// Intersection detected
-			instructionClicked = buttonIntersects[0].object.name;
+    detectButtonPress( xPos, yPos, raycaster, buttonsToCheck ) {
+        let selection = -1;
+
+        if (typeof (raycaster) == "undefined") {
+			return selection;
 		}
 
-		return instructionClicked;
-	}
+        var mouse = new THREE.Vector2(); // TODO: create once
+    
+        mouse.x = ( xPos / this.m_Renderer.domElement.clientWidth ) * 2 - 1;
+        mouse.y = - ( yPos / this.m_Renderer.domElement.clientHeight ) * 2 + 1;
+        
+        raycaster.setFromCamera( mouse, this.m_Camera );
+
+        var intersects = raycaster.intersectObjects( buttonsToCheck );
+
+        if( intersects.length > 0 ) {
+            selection = intersects[0].object.name;
+        }
+
+		return selection;
+    }
 
     toggleGridHelper() {
         if (this.m_GridHelperObject == null || this.m_Scene.getObjectByName("GridHelper") == null) {

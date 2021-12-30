@@ -26,8 +26,7 @@ var ALGO = ALGO || {};
 
 // Instruction Manager can be a map tile observer 
 import { InstructionManager } from './instructionmanager.mjs';
-// Bot can be a map tile observer
-import { Bot } from './bot.mjs';
+import { AlgoMission } from '../algomission.mjs'; 	// for observer notification types
 
 class MapManager 
 {
@@ -37,16 +36,7 @@ class MapManager
 	*/
 	static INITIAL_MAP_ID = 0;
 
-	static TNotificationType = {
-		TILE_CHANGE:  0, 		// other param is tile role
-		SCORE_CHANGE:  1, 		// other param is point delta 			
-		STATE_CHANGE: 2 		// other param is win, die
-	};
-
-	static TState = {
-		DEAD:  			0,
-		WIN:  			1
-	};
+	static NO_TILE = "NO_TILE"; 	// role value for empty tiles (air)
 
 	/**
 	* constructor
@@ -107,7 +97,7 @@ class MapManager
 		this.observers.push(observer);
 	}
 
-	unregisterObserver(fn)
+	unregisterObserver(observer)
 	{
 		this.observers = this.observers.filter(
 			function(existingObserver) {
@@ -120,17 +110,43 @@ class MapManager
 
 	registerFlairSuccess( scoreDelta, contributesToWin )
 	{
-		this.notifyObservers( MapManager.TNotificationType.SCORE_CHANGE, scoreDelta );
+		this.notifyObservers( AlgoMission.TNotificationType.SCORE_CHANGE, scoreDelta );
 		
 		if( contributesToWin ) {
-			if( ++this.m_Successes >= this.m_MapSuccessCriteria ) {
-				this.notifyObservers( MapManager.TNotificationType.STATE_CHANGE, MapManager.TState.WIN )
-			} 
+
+			++this.m_Successes;
+
+			this.updateMapSuccessRate();
 		}
 	}
 
+	isCurrentMapComplete() {
+		return this.m_Successes >= this.mapSuccessCriteria;
+	}
+
+	updateMapSuccessRate() {
+		let oldRate = 0;
+		if( this.jsonMaps[ this.currentMap ].m_CompletionRate ) {
+			oldRate = this.jsonMaps[ this.currentMap ].m_CompletionRate;
+		}
+
+		let newRate = (this.m_Successes / this.maximumScore);
+		this.jsonMaps[ this.currentMap ].m_CompletionRate = Math.max( oldRate, newRate );
+	} 
+
+	getCompletionRate( mapIdx ) {
+		if( this.jsonMaps[mapIdx].m_CompletionRate ) {
+			return this.jsonMaps[mapIdx].m_CompletionRate;
+		}
+		return 0;
+	}
+
+	resetAttempt() {
+		this.m_Successes = 0;
+	}
+
 	registerFlairFailure( scoreDelta ) {
-		this.notifyObservers( MapManager.TNotificationType.SCORE_CHANGE, scoreDelta );
+		this.notifyObservers( AlgoMission.TNotificationType.SCORE_CHANGE, scoreDelta );
 	}
 
 	notifyObservers(notificationType, notificationValue)
@@ -442,12 +458,14 @@ class MapManager
 
 		this.removeMapFromScene( sceneToUpdate );
 
+		this.currentMap = mapId;
 		this.activeTileObjects = [];
 		this.activeTileMeshes = [];
 		this.idToMapObject = {};
 		this.currentActiveTile = "";
 		this.m_Successes = 0;
-		this.m_MapSuccessCriteria = mapDef.successCriteria;
+		this.mapSuccessCriteria = mapDef.successCriteria;
+		this.maximumScore = mapDef.maximumScore;
 
 		this.createMapObjects( mapDef );
 
@@ -889,11 +907,8 @@ class MapManager
 			newTile.activate();
 		}
 
-		this.notifyObservers( MapManager.TNotificationType.TILE_CHANGE, role );
-
-		if( role == "NO_TILE" ) {
-			this.notifyObservers( MapManager.TNotificationType.STATE_CHANGE, MapManager.TState.DEAD );
-		}
+	
+		this.notifyObservers( AlgoMission.TNotificationType.TILE_CHANGE, role );
 
 		this.currentActiveTile = tileId;
 	}

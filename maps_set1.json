@@ -27,8 +27,11 @@
             "mapid": 0,
             "name": "Straight Forward",
             "instructions": "Your first few steps...",
+            "hint": "forward 3 times, then wait (so 4 instructions in total)",
             "difficulty": 1,
             "successCriteria": 1,
+            "maximumScore": 1,
+            "highestScore": 0,
             "tileLayout": [
                 { "x": 0, "z":-1, "id": "tile_bottom_deadend" },
                 { "x": 0, "z": 0, "id": "tile_vert", "role": "START" },
@@ -41,8 +44,10 @@
             "mapid": 1,
             "name": "The Left Turn",
             "instructions": "Now lets try the steering wheel!",
+            "hint": "if you pick up everyone, you get more points!",
             "difficulty": 1,
-            "successCriteria": 2,
+            "successCriteria": 1,
+            "maximumScore": 2,
             "tileLayout": [
                 { "x": 0, "z":-1, "id": "tile_bottom_deadend" },
                 { "x": 0, "z": 0, "id": "tile_vert", "role": "START" },
@@ -57,6 +62,7 @@
             "instructions": "OK, time to get dizzy...",
             "difficulty": 1,
             "successCriteria": 1,
+            "maximumScore": 1,
             "tileLayout": [
                 { "x": 0, "z":-1, "id": "tile_bottom_deadend" },
                 { "x": 0, "z": 0, "id": "tile_bend_right_down", "role": "START" },
@@ -73,6 +79,7 @@
             "instructions": "OK, not dizzy enough? try this!",
             "difficulty": 3,
             "successCriteria": 1,
+            "maximumScore": 1,
             "tileLayout": [
                 { "x": 0, "z":-1, "id": "tile_bottom_deadend" },
                 { "x": 1, "z":0, "id": "tile_left_deadend" },
@@ -96,6 +103,7 @@
             "instructions": "Scare away the birds!",
             "difficulty": 3,
             "successCriteria": 1,
+            "maximumScore": 1,
             "tileLayout": [
                 { "x": 0, "z":-1, "id": "tile_bottom_deadend" },
                 { "x": 1, "z":0, "id": "tile_left_deadend" },
@@ -119,6 +127,7 @@
             "instructions": "More people?!",
             "difficulty": 3,
             "successCriteria": 1,
+            "maximumScore": 1,
             "tileLayout": [
                 { "x": 0, "z":-1, "id": "tile_bottom_deadend" },
                 { "x": 1, "z":0, "id": "tile_left_deadend" },
@@ -141,6 +150,7 @@
             "instructions": "Getting busy...",
             "difficulty": 3,
             "successCriteria": 1,
+            "maximumScore": 1,
             "tileLayout": [
                 { "x": 0, "z":-1, "id": "tile_bottom_deadend" },
                 { "x": 1, "z":0, "id": "tile_left_deadend" },

@@ -12,6 +12,7 @@
 var ALGO = ALGO || {};
 
 import { MapManager } from './mapmanager.mjs';
+import { AlgoMission } from '../algomission.mjs'; 	// for observer notification types
 
 class InstructionManager {
 	static TMapState = {
@@ -54,29 +55,30 @@ class InstructionManager {
 	* constructor
 	* @class The InstructionManager class. Manages the instruction window in the game.
 	*/
-	constructor(mapManager) {
+	constructor(gameMgr) {
 		this.instructions = [];
 		this.html = "<b>Instructions:<b><p>";
 		this.instructionPtr = InstructionManager.instructionConfig.NO_INSTRUCTION; 	// index into this.instructions
 
-		//this.mapManager = mapManager;   		// for map tile events that impact the instruction list
-		mapManager.registerObserver(this);    // We want to know something of interest happens (e.g. moved tile)	
+		gameMgr.getMapManager().registerObserver(this);    	// for score change notifications	
+		gameMgr.registerObserver(this); 					// for state change notifications
 
 		this.currentHint = InstructionManager.TMapState.NONE;
 	}
 
+	// Note: called for both mapManager and gameMgr notifications
 	updateTriggered(notificationType, notificationValue) {
 		console.log("InstructionManager got an event from the map, " + notificationType + ", " + notificationValue);
 
-		if( notificationType == MapManager.TNotificationType.STATE_CHANGE ) {
-			if( notificationValue == MapManager.TState.DEAD ) {
+		if( notificationType == AlgoMission.TNotificationType.STATE_CHANGE ) {
+			if( notificationValue == AlgoMission.TAppState.DEAD ) {
 				this.currentHint = InstructionManager.TMapState.BAD;
 			}
-			else if ( notificationValue == MapManager.TState.WIN ) {
+			else if ( notificationValue == AlgoMission.TAppState.WIN ) {
 				this.currentHint = InstructionManager.TMapState.GOOD;
 			}
 		}
-		else if( notificationType == MapManager.TNotificationType.SCORE_CHANGE ) {
+		else if( notificationType == AlgoMission.TNotificationType.SCORE_CHANGE ) {
 			if( notificationValue < 0 ) {
 				this.currentHint = InstructionManager.TMapState.BAD;
 			}
