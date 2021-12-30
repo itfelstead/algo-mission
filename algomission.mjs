@@ -14,13 +14,14 @@ import { Bot } from './modules/bot.mjs';
 import { MapManager } from './modules/mapmanager.mjs';
 import { InstructionManager } from './modules/instructionmanager.mjs';
 import { ControlPanel } from './modules/controlpanel.mjs';
+import { ScoreManager } from './modules/scoremanager.mjs';
 
 // Global Namespace
 var ALGO = ALGO || {};
 
 class AlgoMission {
  
-    static VERSION = 0.2;
+    static VERSION = 1.0;
 
     static SKY_TEXTURE = "textures/sky_twilight.jpg";   // Texture taken from Optikz 2004 post on blenderartists,org
 
@@ -102,11 +103,6 @@ class AlgoMission {
         this.m_Trophy = null;
         this.m_TrophyLoaded = false;
 
-        // Points mean prizes...  but not yet; TBD
-        this.m_TotalScore = 0;
-        this.m_ScoreMesh = null;
-        this.m_ScoreLoaded = false;
-
         this.m_MapSelectionObjects = [];
 
         this.m_NextArrow = null;
@@ -117,6 +113,8 @@ class AlgoMission {
         this.m_RetryButtonObjects = [];
 
         this.m_Observers = [];
+
+        this.m_ScoreManager = null;
     }
 
     // called by things that want to observe us
@@ -149,10 +147,6 @@ class AlgoMission {
         console.log("Window got an event from the map, " + notificationType + ", " + notificationValue);
         
         switch( notificationType ) {
-            case AlgoMission.TNotificationType.SCORE_CHANGE:
-                this.updateScore( notificationValue );
-            break;
-
             case AlgoMission.TNotificationType.TILE_CHANGE:
                 // If the current tile is 'no tile', then we're in the air...
                 if( notificationValue == MapManager.NO_TILE ) {
@@ -165,67 +159,6 @@ class AlgoMission {
                 console.log("unsupported notification: " + notificationType );
         }
     }  
-
-    updateScore( delta ) {
-        this.m_TotalScore = this.m_TotalScore + delta;
-
-        let update = this.m_TotalScore.toString();
-        this.updateScoreCanvas(update, 1.25, 0xffffff, 0x000000);
-
-        if( delta < 0 ) {
-            // TODO short sad sound?
-        }
-        else {
-            // TODO short happy sound?
-        }
-    }
-
-    createScoreMesh( msg, msgHeight, fgColour, optionalBgColour ) {
-        this.m_ScoreCanvas = document.createElement("canvas");
-        let context = this.m_ScoreCanvas.getContext("2d");
-        context.font = "40px sans-serif"; 
-        let border = 0.25;
-
-        let worldMultiplier = msgHeight/40;     // i.e. font size
-        let msgWidth = (context.measureText(msg).width * worldMultiplier) + border;
-        let totalWidth = Math.ceil( msgWidth/ worldMultiplier);
-        let totalHeight = Math.ceil( (msgHeight+border) / worldMultiplier);
-        this.m_ScoreCanvas.width = totalWidth;
-        this.m_ScoreCanvas.height = totalHeight;
-
-        if (optionalBgColour != undefined) {
-            context.fillStyle = "#" + optionalBgColour.toString(16).padStart(6, '0');
-            context.fillRect( 0,0, totalWidth,totalHeight);
-        }
-
-        context.textAlign = "center";
-        context.textBaseline = "middle"; 
-        context.fillStyle = "#" + fgColour.toString(16).padStart(6, '0');
-        context.font = "40px sans-serif"; 
-        context.fillText(msg, totalWidth/2, totalHeight/2);
-
-        let texture = new THREE.Texture(this.m_ScoreCanvas);
-        texture.minFilter = THREE.LinearFilter;
-        texture.needsUpdate = true;
-
-        let planeGeo = new THREE.PlaneGeometry(msgWidth, (msgHeight+border) );
-        let material = new THREE.MeshBasicMaterial( { side:THREE.DoubleSide, map:texture, transparent:true, opacity:1.0 } );
-        this.m_ScoreMesh = new THREE.Mesh(planeGeo, material);
-        this.m_ScoreMesh.ctx = context; 
-        this.m_ScoreMesh.wPxAll = totalWidth;
-        this.m_ScoreMesh.hPxAll = totalHeight;
-
-    }
-
-    updateScoreCanvas( msg, msgHeight, fgColour, optionalBgColour ) {
-
-        this.m_ScoreMesh.material.map.needsUpdate = true;
-
-        this.m_ScoreMesh.ctx.fillStyle = "#000000"; 
-        this.m_ScoreMesh.ctx.fillRect( 0, 0, this.m_ScoreMesh.wPxAll, this.m_ScoreMesh.hPxAll );
-        this.m_ScoreMesh.ctx.fillStyle = "#ffffff"; 
-        this.m_ScoreMesh.ctx.fillText(msg,this.m_ScoreMesh.wPxAll/2, this.m_ScoreMesh.hPxAll/2);
-    }
 
     getCamera() {
         return this.m_Camera;
@@ -243,13 +176,17 @@ class AlgoMission {
         return this.m_InstructionMgr;
     }
 
+    getScoreManager() {
+        return this.m_ScoreManager;
+    }
+
     runGame() {
         console.log("algo-mission v" + AlgoMission.VERSION + " starting...");
 
         this.m_State = AlgoMission.TAppState.INITIAL;
         this.initialise();
 
-        // we listen to the map manager for win state changes
+        // we listen to the map manager for tile changes
         this.m_MapManager.registerObserver(this);
 
 
@@ -292,18 +229,7 @@ class AlgoMission {
                 break;
 
             case AlgoMission.TAppState.RETRY:
-
-                this.m_InstructionMgr.clearInstructions();
-                this.m_InstructionMgr.updateWindow();
-
-                this.m_MapManager.loadMap(this.m_SelectedMap, this.m_Scene);
-
-                this.m_Bot.respawnBot();
-
-                this.m_Camera.updateProjectionMatrix();
-                this.m_Camera.position.set(this.m_Bot.mesh.position.x, this.m_Bot.mesh.position.y + 60, this.m_Bot.mesh.position.z - 40);
-                this.m_Camera.lookAt(this.m_Bot.mesh.position);
-
+                this.resetPlayArea();
                 break;
 
             case AlgoMission.TAppState.SELECTMAP:
@@ -319,6 +245,21 @@ class AlgoMission {
 
             this.m_MapManager.update(AlgoMission.UPDATE_TIME_STEP);
         }
+    }
+
+    resetPlayArea() {
+        this.m_InstructionMgr.clearInstructions();
+        this.m_InstructionMgr.updateWindow();
+
+        this.m_MapManager.loadMap(this.m_SelectedMap, this.m_Scene);
+
+        this.m_Bot.respawnBot();
+
+        this.m_ScoreManager.resetScore();
+
+        this.m_Camera.updateProjectionMatrix();
+        this.m_Camera.position.set(this.m_Bot.mesh.position.x, this.m_Bot.mesh.position.y + 60, this.m_Bot.mesh.position.z - 40);
+        this.m_Camera.lookAt(this.m_Bot.mesh.position);
     }
 
     updateState(timestep) {
@@ -341,9 +282,15 @@ class AlgoMission {
             case AlgoMission.TAppState.RUNNING:
                 if (this.m_Bot.isDead()) {
                     newState = AlgoMission.TAppState.DEAD;
+
+                    // record the highest score regardless of win or fail
+                    this.getMapManager().applyScore( this.getScoreManager().getScore() );
                 }
                 else if (this.m_InstructionMgr.isRunning() == false) {
                     
+                    // record the highest score regardless of win or fail
+                    this.getMapManager().applyScore( this.getScoreManager().getScore() );
+
                     if( this.m_MapManager.isCurrentMapComplete() ) {
                         this.notifyObservers( AlgoMission.TNotificationType.STATE_CHANGE, AlgoMission.TAppState.WIN )
                         newState = AlgoMission.TAppState.WIN;
@@ -384,7 +331,7 @@ class AlgoMission {
 
             case AlgoMission.TAppState.SELECTMAP:
                 if (this.m_SelectedMap != -1) {
-                    this.m_MapManager.loadMap(this.m_SelectedMap, this.m_Scene);
+                    this.resetPlayArea();
                     newState = AlgoMission.TAppState.RETRY;
                 }
                 break;
@@ -471,6 +418,8 @@ class AlgoMission {
 
         this.addControlPanel(this.m_InstructionMgr, this.m_TextureLoader);
 
+        this.addScoreManager();
+
         this.m_BotLoaded = false;
         this.addBot(this.m_InstructionMgr, this.m_MapManager, this.botCreatedCb.bind(this));
 
@@ -495,7 +444,7 @@ class AlgoMission {
 
         this.addEventListeners();
 
-        this.createScore();
+        this.m_ScoreManager.createScore( this.m_Camera );
 
         var waitForLoad = setInterval(function () {
             if (self.m_BotLoaded == true &&
@@ -511,16 +460,6 @@ class AlgoMission {
             }
         }, 100);
 
-    }
-
-    createScore() {
-        if( this.m_ScoreMesh == null ) {
-            this.createScoreMesh( "---------------", 1.25, 0xffffff, 0x000000);
-    
-            this.m_ScoreMesh.position.set( 7, 9, -10 );
-            this.m_ScoreMesh.name = "scoreMsg";
-            this.m_Camera.add(this.m_ScoreMesh);
-        }
     }
 
     setupGameLoop() {
@@ -669,6 +608,10 @@ class AlgoMission {
         const screenWidth = this.getScreenWidthAtCameraDistance( distanceFromCamera, screenHeight );
 
         this.m_ControlPanel.createControlPanel(instructionMgr, textureLoader, screenWidth, screenHeight, distanceFromCamera );
+    }
+
+    addScoreManager( ) {
+        this.m_ScoreManager = new ScoreManager( this.getMapManager() );
     }
 
     addEventListeners() {
@@ -891,7 +834,8 @@ class AlgoMission {
         let planeGeo = new THREE.PlaneGeometry(msgWidth, (msgHeight+border) );
         let material = new THREE.MeshBasicMaterial( { side:THREE.DoubleSide, map:texture, transparent:true, opacity:1.0 } );
         let mesh = new THREE.Mesh(planeGeo, material);
-
+        mesh.userData.width = msgWidth;
+        mesh.userData.height = (msgHeight+border);
         return mesh;
     }
 
@@ -1127,9 +1071,12 @@ class AlgoMission {
     displayMapSet( numToShow, firstId, xOffset, thumbnailWidth, mapSpacing, distanceFromCamera ) {
         let screenOrder = 0;
         let thumbnailHeight = thumbnailWidth;
-        var mapIdx = firstId;
         let mapY = 0;
-        for( ; mapIdx < (numToShow+firstId); ++mapIdx ) {
+        let batch = Math.trunc(firstId / numToShow);
+        let mapIdx = numToShow*batch;
+        
+        let lastMapToShow = Math.min( this.m_MapManager.jsonMaps.length, (numToShow*batch)+numToShow );
+        for( ; mapIdx < lastMapToShow; ++mapIdx ) {
             var mapDef = this.m_MapManager.jsonMaps[ mapIdx ];
             if( !mapDef.hasOwnProperty('thumbnailTexture') ) {
                 console.log("WARNING: Map " + mapIdx + " lacks a thumbnail");
@@ -1142,11 +1089,12 @@ class AlgoMission {
 
         let arrowYOffset = mapY + (thumbnailWidth/2) + this.m_ArrowHeightOffset; 
 
-        if( mapIdx < this.m_MapManager.jsonMaps.length ) {
+        if( lastMapToShow < this.m_MapManager.jsonMaps.length )
+        {
             this.addMapSelectArrow( this.m_NextArrow, "mapSelectNextArrow", 3, -(arrowYOffset), -distanceFromCamera, 1.6 )
         }
 
-        if( firstId > 0 ) {
+        if( batch > 0 ) {
             this.addMapSelectArrow( this.m_PrevArrow, "mapSelectPrevArrow", -3, -(arrowYOffset), -distanceFromCamera, -1.6 )
         }
 
@@ -1170,7 +1118,7 @@ class AlgoMission {
             })();
         }
 
-        let spotlight = new THREE.SpotLight( 0xffffff, 1, 0, Math.PI/2  );
+        let spotlight = new THREE.SpotLight( 0xffffff, 1, 200, Math.PI/2  );
         spotlight.position.set(0,0,distanceFromCamera+1);
         spotlight.target = this.m_NextArrow;
         spotlight.name = "mapSelectSpotlight";
@@ -1195,11 +1143,12 @@ class AlgoMission {
         
         mapSelectGroup.add(thumbMesh);
 
-        // Add highest score - TODO
-
-
         // Add completion awards
         let completionRate = this.m_MapManager.getCompletionRate(mapIdx);
+
+        let spacing = 0.5;
+        let awardXOffset = thumbMesh.position.x - (thumbnailWidth/2);
+        let awardYOffset = thumbMesh.position.y + (thumbnailHeight/2);
 
         if( completionRate > 0 ) {
             let colour = 0xd9a004; // bronze
@@ -1210,13 +1159,21 @@ class AlgoMission {
                 colour = 0xe8e5dc; // silver
             }
 
-            let spacing = 0.5;
             const geometry = new THREE.CircleGeometry( 0.25, 16 );
             const material = new THREE.MeshStandardMaterial( { color: colour } );
             const awardMesh = new THREE.Mesh( geometry, material );
-            awardMesh.position.set( thumbMesh.position.x - (thumbnailWidth/2) + spacing, thumbMesh.position.y+(thumbnailHeight/2) - spacing, -(distanceFromCamera) )
+            awardMesh.position.set( awardXOffset+ spacing, awardYOffset - spacing, -(distanceFromCamera) )
             mapSelectGroup.add( awardMesh );
         }
+
+        // Add highest score
+        let highestScore = this.m_MapManager.getHighScore(mapIdx);
+        let highScoreMsg = "High score: " + highestScore.toString();
+        let highScoreMesh = this.messageToMesh(highScoreMsg, 0.33, 0xFFFFFF, undefined);
+        let bottomOffset = thumbMesh.position.y - (thumbnailHeight/2);
+        highScoreMesh.position.set( awardXOffset + (highScoreMesh.userData.width/2), bottomOffset + (highScoreMesh.userData.height/2), -10 );
+        highScoreMesh.name = "highScoreMsg";
+        mapSelectGroup.add(highScoreMesh);
 
         // Add map Id text
         let mapIdTextHeight = 0.75;
@@ -1378,11 +1335,20 @@ class AlgoMission {
             case AlgoMission.TAppState.SELECTMAP:
                 let mapSelected = this.detectMapSelection(event.clientX, event.clientY, this.m_Raycaster );
                 if( mapSelected == "mapSelectPrevArrow" ) {
-                    this.m_MapSelectIndex = Math.max(0, this.m_MapSelectIndex-3);
+                    const numInBatch = 3;
+                    let batch = Math.trunc(this.m_MapSelectIndex / numInBatch);
+                    batch--;
+                    this.m_MapSelectIndex = Math.max(0, batch * numInBatch);
                     this.displayMapScreen();
                 }
                 else if( mapSelected == "mapSelectNextArrow" ) {
-                    this.m_MapSelectIndex = Math.min(this.m_MapManager.jsonMaps.length-3, this.m_MapSelectIndex+3);
+                    const numInBatch = 3;
+                    let batch = Math.trunc(this.m_MapSelectIndex / numInBatch);
+                    batch++;
+                    if( batch * numInBatch >= this.m_MapManager.jsonMaps.length ) {
+                        batch--;
+                    }
+                    this.m_MapSelectIndex = batch * numInBatch;
                     this.displayMapScreen();
                 }
                 if( mapSelected > -1 ) {

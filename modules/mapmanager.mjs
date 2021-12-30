@@ -132,7 +132,26 @@ class MapManager
 
 		let newRate = (this.m_Successes / this.maximumScore);
 		this.jsonMaps[ this.currentMap ].m_CompletionRate = Math.max( oldRate, newRate );
-	} 
+	}
+
+	applyScore( score ) {
+		let previousHigh = 0;
+
+		if( this.currentMap >= 0 &&
+			this.jsonMaps[ this.currentMap ].hasOwnProperty("m_HighScore") ) {
+			previousHigh = this.jsonMaps[ this.currentMap ].m_HighScore;
+		}
+
+		this.jsonMaps[ this.currentMap ].m_HighScore = Math.max( previousHigh, score );
+	}
+
+	getHighScore( mapIdx ) {
+		if( mapIdx >= 0 &&
+			this.jsonMaps[ mapIdx ].hasOwnProperty("m_HighScore") ) {
+			return this.jsonMaps[ mapIdx ].m_HighScore;
+		}
+		return 0;
+	}
 
 	getCompletionRate( mapIdx ) {
 		if( this.jsonMaps[mapIdx].m_CompletionRate ) {

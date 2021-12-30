@@ -176,8 +176,8 @@ class TileFlairBird {
                     this.flap();
                     if( "BirdFlairSound_Angry" in this.audio ) {
                         this.audio["BirdFlairSound_Angry"].play();
-                    }
-                    this.m_GameMgr.updateScore( -100 );
+                    } 
+                    this.m_GameMgr.getScoreManager().updateScore( -100 );
                 }
                 break;
             case TileFlairBird.TBirdState.GOODBYE_BOT:

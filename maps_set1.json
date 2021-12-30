@@ -31,7 +31,6 @@
             "difficulty": 1,
             "successCriteria": 1,
             "maximumScore": 1,
-            "highestScore": 0,
             "tileLayout": [
                 { "x": 0, "z":-1, "id": "tile_bottom_deadend" },
                 { "x": 0, "z": 0, "id": "tile_vert", "role": "START" },
