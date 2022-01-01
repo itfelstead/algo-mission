@@ -65,40 +65,94 @@ class LoadingManager {
         const screenHeight = this.m_GameMgr.getScreenHeightAtCameraDistance( distanceFromCamera );
         const screenWidth = this.m_GameMgr.getScreenWidthAtCameraDistance( distanceFromCamera, screenHeight );
 
-        let loadingMsgMesh = this.m_GameMgr.messageToMesh("Loading...", 1.25, 0xFFFFFF, undefined);
+        let loadingMsgMesh = this.m_GameMgr.messageToMesh("LOADING", 2, 0xFFFFFF, undefined);
         
         loadingMsgMesh.position.set( -(loadingMsgMesh.userData.width/2), (screenHeight/2) - loadingMsgMesh.userData.height/2, -distanceFromCamera );  // top, middle
         loadingMsgMesh.name = "loadingMsgMesh";
         this.m_GameMgr.getCamera().add(loadingMsgMesh);
 
+        let vertSpacing = screenHeight * 0.05;     // 5%
+        let yOffset = loadingMsgMesh.position.y - loadingMsgMesh.userData.height/2 - vertSpacing;
+
+        for (var job in this.m_JobMonitor) {
+
+            let jobMesh = this.m_GameMgr.messageToMesh(job, 1, 0xFFFFFF, undefined);
+            yOffset = yOffset - vertSpacing - jobMesh.userData.height/2;
+            jobMesh.position.set( 0, yOffset, -distanceFromCamera );  // middle
+            jobMesh.name = job;
+            this.m_GameMgr.getCamera().add(jobMesh);
+        }
+
+        this.animateJobs();
+    }
+
+    animateJobs() {
+
+        let animDelayMs = 10;
+        let finalZ = 5;     // behind camera
+        let rotateStep = 0.01;
+        let zoomStep = 0.2;
+
+        for (var job in this.m_JobMonitor) {
+            let jobMesh = this.m_GameMgr.getCamera().getObjectByName(job);
+            if( jobMesh ) {
+                this.animateJob( job, jobMesh, animDelayMs, rotateStep, zoomStep, finalZ )
+            }
+        }
+    }
+
+    animateJob( job, mesh, animDelayMs, rotateStep, zoomStep, finalZ ) {
+
+        let continueAnimation = true;
+
+        // if job is complete, animate the zoom away, unless already zoomed
+        if( this.m_JobMonitor[job] == true ) {
+            if( mesh.position.z > finalZ ) {
+                continueAnimation = false;      // mesh no longer visible
+            }
+            else {
+                mesh.position.z = mesh.position.z + zoomStep;
+            }
+        }
+        else {
+            // spin if you want..
+            mesh.rotation.y = mesh.rotation.y + (zoomStep/10);
+        }
+            
+        if( continueAnimation) {
+            setTimeout(this.animateJob.bind(this, job, mesh, animDelayMs, rotateStep, zoomStep, finalZ ), animDelayMs);
+        }
+    }
+
+    animateZoomAway( mesh, animDelayMs, zoomStep, finalZ ) {
+        if( mesh.position.z < finalZ  ) {
+            mesh.position.z = mesh.position.z + zoomStep;
+            mesh.position.y = mesh.position.y - (zoomStep*2);
+            mesh.rotation.z = mesh.rotation.z + (zoomStep/10);
+            setTimeout(this.animateZoomAway.bind(this, mesh, animDelayMs, zoomStep, finalZ ), animDelayMs);
+        }
+        else {
+            this.m_GameMgr.getCamera().remove( mesh );
+        }
     }
 
     removeLoadingScreen() {
+
+        let animDelayMs = 10;
+        let finalZ = 5;     // behind camera
+        let zoomStep = 0.1;
         let loadingMsgMesh = this.m_GameMgr.getCamera().getObjectByName("loadingMsgMesh");
         if( loadingMsgMesh ) {
-            this.m_GameMgr.getCamera().remove( loadingMsgMesh );
+            this.animateZoomAway( loadingMsgMesh, animDelayMs, zoomStep, finalZ );
         }
 
-        /*
-        var fadeStep = 0.05;
-        var fadePauseMs = 100;
-        var fade = 1.0;
-
-        // setting html to '' also tells the progress bar to finish
-        document.getElementById("loadingScreen").innerHTML = "";
-
-        (function fadeDivs() {
-            document.getElementById("loadingScreen").style.opacity = fade;
-
-            fade -= fadeStep;
-            if (fade > 0) {
-                setTimeout(fadeDivs, fadePauseMs);
-            }
-            else {
-                document.getElementById("loadingScreen").remove();
-            }
-        })();
-        */
+        // should all be zoomed away at this point, but just in case...
+        for (var job in this.m_JobMonitor) {
+            let mesh = this.m_GameMgr.getCamera().getObjectByName(job);
+            if( mesh ) {
+                this.m_GameMgr.getCamera().remove( mesh );
+            } 
+        }
     }
 }
 

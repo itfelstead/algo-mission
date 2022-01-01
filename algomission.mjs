@@ -945,8 +945,18 @@ class AlgoMission {
         let distanceFromCamera = 10;
         let selectMapScreenSize = this.getBestSelectMapScreenWidth( distanceFromCamera );
 
-        let numMapsPerPage = 3;
-        if( this.m_MapManager.jsonMaps.length < numMapsPerPage ) {
+        if( selectMapScreenSize < 17 ) {
+            this.m_MapBatchSize = 1;
+        }
+        else if( selectMapScreenSize < 20 ) {
+            this.m_MapBatchSize = 2;
+        }
+        else {
+            this.m_MapBatchSize = 3;
+        }
+
+        let numMapsPerPage = this.m_MapBatchSize;
+        if( this.m_MapManager.jsonMaps.length < this.m_MapBatchSize ) {
             numMapsPerPage = this.m_MapManager.jsonMaps.length;
         }
 
@@ -1203,6 +1213,7 @@ class AlgoMission {
     onDocumentMouseDown(event) {
 
         event.preventDefault();
+        event.stopImmediatePropagation();
 
         this.handleClickByState( event );
     }
@@ -1268,20 +1279,19 @@ class AlgoMission {
             case AlgoMission.TAppState.SELECTMAP:
                 let mapSelected = this.detectMapSelection(event.clientX, event.clientY, this.m_Raycaster );
                 if( mapSelected == "mapSelectPrevArrow" ) {
-                    const numInBatch = 3;
-                    let batch = Math.trunc(this.m_MapSelectIndex / numInBatch);
+                    let batch = Math.trunc(this.m_MapSelectIndex / this.m_MapBatchSize);
                     batch--;
-                    this.m_MapSelectIndex = Math.max(0, batch * numInBatch);
+                    this.m_MapSelectIndex = Math.max(0, batch * this.m_MapBatchSize);
                     this.displayMapScreen();
                 }
                 else if( mapSelected == "mapSelectNextArrow" ) {
-                    const numInBatch = 3;
-                    let batch = Math.trunc(this.m_MapSelectIndex / numInBatch);
+                  
+                    let batch = Math.trunc(this.m_MapSelectIndex / this.m_MapBatchSize);
                     batch++;
-                    if( batch * numInBatch >= this.m_MapManager.jsonMaps.length ) {
+                    if( batch * this.m_MapBatchSize >= this.m_MapManager.jsonMaps.length ) {
                         batch--;
                     }
-                    this.m_MapSelectIndex = batch * numInBatch;
+                    this.m_MapSelectIndex = batch * this.m_MapBatchSize;
                     this.displayMapScreen();
                 }
                 if( mapSelected > -1 ) {
