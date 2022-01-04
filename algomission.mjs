@@ -116,6 +116,8 @@ class AlgoMission {
 
         // These are the jobs that we need to wait for (i.e. things the loading screen covers)
         this.m_StartupLoadJobNames = [ "bot", "sky", "map",  "winner audio", "audio" ];
+
+        this.m_ClickBlackoutHack = false;
     }
 
     // called by things that want to observe us
@@ -1163,16 +1165,25 @@ class AlgoMission {
         this.m_Renderer.setSize(width, height);
     }
 
+    // For touch screens we have to mess about a bit to avoid accidental double clicks
     onDocumentTouchStart(event) {
         event.preventDefault();
         event.clientX = event.touches[0].clientX;
         event.clientY = event.touches[0].clientY;
-        this.handleClickByState(event);
+        this.onDocumentMouseDown(event);
     }
-
+   
     onDocumentMouseDown(event) {
         event.preventDefault();
-        this.handleClickByState( event );
+
+        if( this.m_ClickBlackoutHack == false ) {
+            this.m_ClickBlackoutHack = true;
+            let self = this;
+            setTimeout( function() {
+                self.m_ClickBlackoutHack = false;
+            }, 100);
+            this.handleClickByState( event );
+        }
     }
 
     handleClickByState( event ) {
