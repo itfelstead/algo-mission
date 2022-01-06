@@ -17,7 +17,7 @@ import { ControlPanel } from './modules/controlpanel.mjs';
 import { ScoreManager } from './modules/scoremanager.mjs';
 import { LoadingManager } from './modules/loadingmanager.mjs';
 
-import { messageToMesh, limitViaScale, getScreenHeightAtCameraDistance, getScreenWidthAtCameraDistance, getBestSelectMapScreenWidth } from './modules/algoutils.js'; 	        // utility functions
+import { calculateMeshHeight, messageToMesh, limitViaScale, getScreenHeightAtCameraDistance, getScreenWidthAtCameraDistance, getBestSelectMapScreenWidth } from './modules/algoutils.js'; 	        // utility functions
 
 
 // Global Namespace
@@ -48,6 +48,9 @@ class AlgoMission {
 		SCORE_CHANGE: 1, 		// other param will be  score delta 			
 		STATE_CHANGE: 2 		// other param will be  win, die
 	};
+
+    static CAMERA_Y_OFFSET = 60;
+    static CAMERA_Z_OFFSET = -40;
 
     constructor() {
         this.m_State = AlgoMission.TAppState.INITIAL;
@@ -172,7 +175,7 @@ class AlgoMission {
     }
 
     getBot() {
-        return this.m_Bot;
+        return this.m_Bot.getBot();
     }
 
     getLoadingManager() {
@@ -225,9 +228,8 @@ class AlgoMission {
                 // camera must follow bot
                 this.m_MouseControls.enabled = false;
 
-                this.m_Camera.updateProjectionMatrix();
-                this.m_Camera.position.set(this.m_Bot.mesh.position.x, this.m_Bot.mesh.position.y + 60, this.m_Bot.mesh.position.z - 40);
-                this.m_Camera.lookAt(this.m_Bot.mesh.position);
+                this.updateCamera();
+
                 break;
 
             case AlgoMission.TAppState.WIN:
@@ -258,6 +260,14 @@ class AlgoMission {
         }
     }
 
+    updateCamera() {
+        this.m_Camera.updateProjectionMatrix();
+        this.m_Camera.position.set(this.m_Bot.getBot().position.x, 
+                                    this.m_Bot.getBot().position.y + AlgoMission.CAMERA_Y_OFFSET, 
+                                    this.m_Bot.getBot().position.z + AlgoMission.CAMERA_Z_OFFSET);
+        this.m_Camera.lookAt(this.m_Bot.getBot().position);
+    }
+
     resetPlayArea() {
         this.m_InstructionMgr.clearInstructions();
         this.m_InstructionMgr.updateWindow();
@@ -268,9 +278,7 @@ class AlgoMission {
 
         this.m_ScoreManager.resetScore();
 
-        this.m_Camera.updateProjectionMatrix();
-        this.m_Camera.position.set(this.m_Bot.mesh.position.x, this.m_Bot.mesh.position.y + 60, this.m_Bot.mesh.position.z - 40);
-        this.m_Camera.lookAt(this.m_Bot.mesh.position);
+        this.updateCamera();
     }
 
     updateState(timestep) {
@@ -278,7 +286,7 @@ class AlgoMission {
 
         switch (this.m_State) {
             case AlgoMission.TAppState.INITIAL:
-                if (this.m_Bot.mesh != null && typeof (this.m_Bot.mesh) != "undefined" &&
+                if (this.getLoadingManager().isLoaded( "bot" ) == true  &&
                     this.getLoadingManager().isLoaded( "map" ) == true ) {
                     newState = AlgoMission.TAppState.SELECTMAP;
                 }
@@ -474,13 +482,13 @@ class AlgoMission {
 
     hidePlayArea() {
         this.m_ControlPanel.removeButtons( this.m_Camera );
-        this.m_Scene.remove(this.m_Bot.mesh);
+        this.m_Scene.remove(this.m_Bot.getBot());
         this.m_ScoreManager.hideScore( this.m_Camera );
     }
 
     showPlayArea() {
         this.m_ScoreManager.showScore( this.m_Camera );
-        this.m_Scene.add(this.m_Bot.mesh);
+        this.m_Scene.add(this.m_Bot.getBot());
         this.m_ControlPanel.addButtons( this.m_Camera );
     }
 
@@ -506,7 +514,7 @@ class AlgoMission {
     addCamera() {
         this.m_Camera = new THREE.PerspectiveCamera(90, 1, 0.001, 1700);
         // look over bots shoulder
-        this.m_Camera.position.set(0, 60, -40);
+        this.m_Camera.position.set(0, AlgoMission.CAMERA_Y_OFFSET, AlgoMission.CAMERA_Z_OFFSET);
         this.m_Camera.lookAt(new THREE.Vector3(0, 0, 0));
         this.m_Scene.add(this.m_Camera);
 
@@ -712,14 +720,23 @@ class AlgoMission {
         trophySpotlight.name = "trophySpotlight";
         this.m_Camera.add(trophySpotlight);
         
-        let messageMesh = messageToMesh(document, "Well done!", 1.25, 0x000000, undefined);
-        messageMesh.position.set( 0, -4, -10 );
+        const trophyHeight = calculateMeshHeight( this.m_Trophy );
+
+        let distanceFromCamera = 10;
+
+		const screenHeight = getScreenHeightAtCameraDistance( distanceFromCamera, this.m_Camera.fov );
+        const screenWidth = getScreenWidthAtCameraDistance( distanceFromCamera, screenHeight, this.m_Camera.aspect );
+
+        let messageMesh = messageToMesh(document, "Well done!", 1.25, 0xFFFFFF, undefined);
         messageMesh.name = "wellDoneMsg";
+        limitViaScale( messageMesh, messageMesh.userData.width, screenWidth );
+        messageMesh.position.set( 0, -(trophyHeight + (messageMesh.userData.height/2)), -distanceFromCamera );
         this.m_Camera.add(messageMesh);
 
-        let newMissionMesh = messageToMesh(document, "(click mouse for a new mission)", 1, 0x000000, undefined);
-        newMissionMesh.position.set( 0, -6, -10 );
+        let newMissionMesh = messageToMesh(document, "(click mouse for a new mission)", 1, 0xDDDDDD, undefined);
         newMissionMesh.name = "newMissionMsg";
+        limitViaScale( newMissionMesh, newMissionMesh.userData.width, screenWidth );
+        newMissionMesh.position.set( 0, messageMesh.position.y - (messageMesh.userData.height/2) - newMissionMesh.userData.height, -distanceFromCamera );
         
         let animDelayMs = 10;
 
