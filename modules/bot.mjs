@@ -12,6 +12,9 @@ import { InstructionManager } from "./instructionmanager.mjs";
 import { MapManager } from "./mapmanager.mjs";
 import { AlgoMission } from "../algomission.mjs";
 
+import { calculateMeshDimensions } from './algoutils.js'; 	        // utility functions
+
+
 /**
  * @namespace The algo-mission namespace
  */
@@ -72,9 +75,11 @@ class Bot {
   
     this.mesh = null;
 
+    /*
     // we hold the bot is a group to assist with rotation 
     // (i.e. we rotate bot to starting orientation, then rotate the group from then on)
     this.botGroup = null;
+*/
 
     this.modelLength = 0;
     this.stepSize = 0;  		// units to move by (over OP_TIME_STEP seconds). Will update based on bot length
@@ -118,11 +123,7 @@ class Bot {
   calculateStepSize() {
     var tileBorder = 4;
 
-    var boundingBox = new THREE.Box3().setFromObject(this.getBot());
-    const boxSize = new THREE.Vector3();
-    boundingBox.getSize( boxSize );
-
-    this.modelLength = boxSize.z;
+    this.modelLength = this.getBot().userData.depth;
     this.stepSize = this.modelLength + (tileBorder * 2);
   }
 
@@ -152,16 +153,21 @@ class Bot {
       // Scale is OK as loaded, but to change; object3d.scale.set(100, 100, 100);
 
       instance.mesh = object3d;
-
+/*
       instance.botGroup = new THREE.Group();
       instance.botGroup.add( instance.mesh );
+*/
+      const box = calculateMeshDimensions(instance.mesh);
+      instance.mesh.userData.width = box.x;
+      instance.mesh.userData.height = box.y;
+      instance.mesh.userData.depth = box.z;
 
       instance.calculateStepSize();
     });
   }
 
   getBot() {
-    return this.botGroup;
+    return this.mesh;     // return this.botGroup;
   }
 
   loadAudio(audioListener) {

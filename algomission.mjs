@@ -18,6 +18,7 @@ import { ScoreManager } from './modules/scoremanager.mjs';
 import { LoadingManager } from './modules/loadingmanager.mjs';
 
 import { calculateMeshHeight, messageToMesh, limitViaScale, getScreenHeightAtCameraDistance, getScreenWidthAtCameraDistance, getBestSelectMapScreenWidth } from './modules/algoutils.js'; 	        // utility functions
+import { TitleScreen } from './modules/titlescreen.mjs';
 
 
 // Global Namespace
@@ -32,14 +33,16 @@ class AlgoMission {
     static UPDATE_TIME_STEP = 0.033;                    // 33ms = approx 30 FPS game loop
 
     static TAppState = {
-        INITIAL: 1,
-        READY: 2,
-        WAITING: 3,
-        RUNNING: 4,
-        WIN: 5,
-        DEAD: 6,
-        RETRY: 7,
-        SELECTMAP: 8
+        INITIAL: 0,
+        SETUP: 1,
+        LOADED: 2,
+        READY: 3,
+        WAITING: 4,
+        RUNNING: 5,
+        WIN: 6,
+        DEAD: 7,
+        RETRY: 8,
+        SELECTMAP: 9
     };
 
     // Observer notification types (central)
@@ -190,30 +193,36 @@ class AlgoMission {
         return this.m_InstructionMgr;
     }
 
+    getControlPanel() {
+        return this.m_ControlPanel;
+    }
+
     getScoreManager() {
         return this.m_ScoreManager;
     }
 
     runGame() {
         console.log("algo-mission v" + AlgoMission.VERSION + " starting...");
-
+        
         this.m_State = AlgoMission.TAppState.INITIAL;
-        this.initialise();
 
-        // we listen to the map manager for tile changes
-        this.m_MapManager.registerObserver(this);
+        this.setupBasicScene();
 
+        this.setupGameLoop();
 
-        //m_State = AlgoMission.TAppState.SELECTMAP;
         this.gameLoop(); 	// intial kickoff, subsequest calls via requestAnimationFrame()
     }
 
     actOnState() {
         switch (this.m_State) {
             case AlgoMission.TAppState.INITIAL:
-                // NOOP - should be initialised before we get here
+                // NOOP
                 break;
-
+            case AlgoMission.TAppState.SETUP:
+                // During this state we're just waiting for loading, or the user to click past the title screen
+                break;
+            case AlgoMission.TAppState.LOADED:
+                break;
             case AlgoMission.TAppState.READY:
                 // allow user freedom to look around
                 this.m_MouseControls.enabled = true;
@@ -252,7 +261,7 @@ class AlgoMission {
 
         if (this.m_State != AlgoMission.TAppState.INITIAL && this.m_State != AlgoMission.TAppState.DEAD) {
 
-            this.m_ControlPanel.update(AlgoMission.UPDATE_TIME_STEP);
+            this.getControlPanel().update(AlgoMission.UPDATE_TIME_STEP);
 
             this.m_Bot.update(AlgoMission.UPDATE_TIME_STEP)
 
@@ -260,35 +269,25 @@ class AlgoMission {
         }
     }
 
-    updateCamera() {
-        this.m_Camera.updateProjectionMatrix();
-        this.m_Camera.position.set(this.m_Bot.getBot().position.x, 
-                                    this.m_Bot.getBot().position.y + AlgoMission.CAMERA_Y_OFFSET, 
-                                    this.m_Bot.getBot().position.z + AlgoMission.CAMERA_Z_OFFSET);
-        this.m_Camera.lookAt(this.m_Bot.getBot().position);
-    }
-
-    resetPlayArea() {
-        this.m_InstructionMgr.clearInstructions();
-        this.m_InstructionMgr.updateWindow();
-
-        this.m_MapManager.loadMap(this.m_SelectedMap, this.m_Scene);
-
-        this.m_Bot.respawnBot();
-
-        this.m_ScoreManager.resetScore();
-
-        this.updateCamera();
-    }
-
     updateState(timestep) {
         var newState = this.m_State;
 
         switch (this.m_State) {
             case AlgoMission.TAppState.INITIAL:
-                if (this.getLoadingManager().isLoaded( "bot" ) == true  &&
-                    this.getLoadingManager().isLoaded( "map" ) == true ) {
+                // We're up, so start setting up
+                newState = AlgoMission.TAppState.SETUP;
+                break;
+
+            case AlgoMission.TAppState.SETUP:
+                if( this.getLoadingManager().loadComplete( this.m_StartupLoadJobNames ) == true ) {
+                    newState = AlgoMission.TAppState.LOADED;
+                }
+                break;
+            
+            case AlgoMission.TAppState.LOADED:
+                if( this.m_SelectMap == true ) {
                     newState = AlgoMission.TAppState.SELECTMAP;
+                    this.m_SelectMap = false;
                 }
                 break;
 
@@ -368,6 +367,20 @@ class AlgoMission {
     onEnterState() {
         switch (this.m_State) {
             case AlgoMission.TAppState.INITIAL:
+                console.log("Warning: Should not be possible to enter initial state");
+                break;
+            case AlgoMission.TAppState.SETUP: 
+                this.addLoadingManager();
+                this.getLoadingManager().displayLoadingScreen( this.m_Camera );
+                this.initialise();
+                break;
+            case AlgoMission.TAppState.LOADED:
+
+                // adjust map and bot step measurements according to Bot length
+                this.m_MapManager.resize(this.m_Bot.getStepSize(), 0.1);
+
+                this.createTitleScreen();
+
                 break;
             case AlgoMission.TAppState.READY:
                 this.showPlayArea();
@@ -375,6 +388,7 @@ class AlgoMission {
             case AlgoMission.TAppState.RUNNING:
                 break;
             case AlgoMission.TAppState.WIN:
+                this.getControlPanel().hide();
                 this.displayWinnerScreen();
                 break;
             case AlgoMission.TAppState.DEAD:
@@ -395,6 +409,16 @@ class AlgoMission {
     onExitState() {
         switch (this.m_State) {
             case AlgoMission.TAppState.INITIAL:
+                // NOOP
+                break;
+            case AlgoMission.TAppState.SETUP:
+                this.getLoadingManager().removeLoadingScreen();
+                this.setMeshVisibility( "sky", true);
+                break;
+            case AlgoMission.TAppState.LOADED:
+                this.getTitleScreen().destroy( this.m_Camera );
+                this.toggleGridHelper();
+                this.m_ScoreManager.createScore( this.m_Camera );
                 break;
             case AlgoMission.TAppState.READY:
                 break;
@@ -409,9 +433,30 @@ class AlgoMission {
             case AlgoMission.TAppState.RETRY:
                 break;
             case AlgoMission.TAppState.SELECTMAP:
-                this.removeMapScreen();
+                this.removeMapScreen();     // if present
                 break;
         }
+    }
+
+    updateCamera() {
+        this.m_Camera.updateProjectionMatrix();
+        this.m_Camera.position.set(this.m_Bot.getBot().position.x, 
+                                    this.m_Bot.getBot().position.y + AlgoMission.CAMERA_Y_OFFSET, 
+                                    this.m_Bot.getBot().position.z + AlgoMission.CAMERA_Z_OFFSET);
+        this.m_Camera.lookAt(this.m_Bot.getBot().position);
+    }
+
+    resetPlayArea() {
+        this.m_InstructionMgr.clearInstructions();
+        this.m_InstructionMgr.updateWindow();
+
+        this.m_MapManager.loadMap(this.m_SelectedMap, this.m_Scene);
+
+        this.m_Bot.respawnBot();
+
+        this.m_ScoreManager.resetScore();
+
+        this.updateCamera();
     }
 
     //
@@ -419,14 +464,6 @@ class AlgoMission {
     //
 
     initialise() {
-
-        this.setupBasicScene();
-
-        this.addCamera();
-
-        this.addLoadingManager();
-
-        this.getLoadingManager().displayLoadingScreen( this.m_Camera );
 
         this.addAudio(this.m_Camera);
 
@@ -444,52 +481,38 @@ class AlgoMission {
 
         this.addScoreManager();
 
-        this.addBot(this.m_InstructionMgr, this.m_MapManager, this.botCreatedCb.bind(this));
-
-        // We use the calculated bot length to size the tiles
-        // so wait until the model has loaded and the length
-        // has been calculated
-        var self = this;
-        var myInterval = setInterval(function () {
-            if (self.getLoadingManager().isLoaded("bot") == true && self.getLoadingManager().isLoaded("map") == true) {
-                // adjust map and bot step measurements according to Bot length
-                self.m_MapManager.resize(self.m_Bot.getStepSize(), 0.1);
-                clearInterval(myInterval);
-            }
-        }, 100);
-
-        this.setupGameLoop();
+        this.addBot(this.botCreatedCb.bind(this));
 
         this.setupCollisionDetection();
 
         this.addEventListeners();
+    }
 
-        var waitForLoad = setInterval(function () {
-            if ( self.getLoadingManager().loadComplete( self.m_StartupLoadJobNames ) == true ) {
+    createTitleScreen() {
 
-                clearInterval(waitForLoad);
+        this.m_TitleScreen = new TitleScreen();
 
-                self.getLoadingManager().removeLoadingScreen();
+        this.m_TitleScreen.create( this.m_Camera, this.getBot() );
 
-                self.setMeshVisibility( "sky", true);
+   }
 
-                self.toggleGridHelper();
-
-                self.m_ScoreManager.createScore( self.m_Camera );
-            }
-        }, 100);
+    getTitleScreen() {
+        return this.m_TitleScreen;
     }
 
     hidePlayArea() {
-        this.m_ControlPanel.removeButtons( this.m_Camera );
+        this.getControlPanel().hide();
         this.m_Scene.remove(this.m_Bot.getBot());
         this.m_ScoreManager.hideScore( this.m_Camera );
+
+        this.getInstructionMgr().hide();
     }
 
     showPlayArea() {
+        this.getInstructionMgr().show();
         this.m_ScoreManager.showScore( this.m_Camera );
         this.m_Scene.add(this.m_Bot.getBot());
-        this.m_ControlPanel.addButtons( this.m_Camera );
+        this.getControlPanel().show();
     }
 
     setupGameLoop() {
@@ -509,6 +532,8 @@ class AlgoMission {
         this.m_GLTFLoader = new GLTFLoader();
 
         this.m_Scene = new THREE.Scene();
+
+        this.addCamera();
     }
 
     addCamera() {
@@ -606,8 +631,8 @@ class AlgoMission {
     }
 
     // calls botCb() when bot is ready
-    addBot(instructionMgr, mapManager, botCb) {
-        this.m_Bot = new Bot( this );//instructionMgr, mapManager);
+    addBot(botCb) {
+        this.m_Bot = new Bot( this );
         this.m_Bot.load("models/ToonBus_VijayKumar/scene.gltf",
             this.m_GLTFLoader,
             this.m_AudioListener,
@@ -626,6 +651,10 @@ class AlgoMission {
     addMapManager(textureLoader) {
         this.m_MapManager = new MapManager( this );
         var self = this;
+
+        // we listen to the map manager for tile changes
+        this.m_MapManager.registerObserver(this);
+
         this.m_MapManager.load(textureLoader, this.m_GLTFLoader, 
                 function () { 
                     self.getLoadingManager().markJobComplete("map");
@@ -842,14 +871,6 @@ class AlgoMission {
 
         this.m_Camera.add(retryMesh);
         this.m_Camera.add(chooseMapMesh);
-    }
-
-    retryMap() {
-        this.m_Retry = true;
-    }
-
-    selectMap() {
-        this.m_SelectMap = true;
     }
 
     removeDeathScreen() {
@@ -1159,6 +1180,7 @@ class AlgoMission {
         // perform as many updates as we should do
         // based on the time elapsed from last gameloop call
         while (this.m_Lag >= AlgoMission.UPDATE_TIME_STEP) {
+
             this.update();
 
             this.m_Lag -= AlgoMission.UPDATE_TIME_STEP;
@@ -1215,6 +1237,11 @@ class AlgoMission {
         switch( this.m_State ) {
             case AlgoMission.TAppState.INITIAL:
                 // NOOP
+                break;
+            case AlgoMission.TAppState.LOADED:
+                // If we're on the title screen, then a click just means
+                // select next map - don't detect any other button presses
+                this.m_SelectMap = true;
                 break;
             case AlgoMission.TAppState.READY:
                 var instructionsUpdated = 0;
@@ -1303,7 +1330,7 @@ class AlgoMission {
     }
 
 	detectInstructionPress(xPos, yPos, raycaster) {
-        return this.detectButtonPress( xPos, yPos, raycaster, this.m_ControlPanel.getActiveButtons() );
+        return this.detectButtonPress( xPos, yPos, raycaster, this.getControlPanel().getActiveButtons() );
     }
 
     detectButtonPress( xPos, yPos, raycaster, buttonsToCheck ) {
