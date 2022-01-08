@@ -12,7 +12,7 @@ This project aims to create a three.js based path programmable object much like 
 Screenshot:
 ![alt tag](https://cloud.githubusercontent.com/assets/5990178/19145914/21829310-8ba9-11e6-9619-04fbb6d4f722.JPG)
 
-Access it running on [itch.io](https://itfelstead.itch.io/algo-mission) here or on [github.io](https://itfelstead.github.io/) here.
+Access it running on itch.io [here](https://itfelstead.itch.io/algo-mission) or on github.io [here](https://itfelstead.github.io/).
 
 Alternatively, to run locally you can use node.js's http-server (otherwise see https://threejs.org/docs/#manual/introduction/How-to-run-thing-locally )
 e.g. navigate to your algo-mission dir and run;
