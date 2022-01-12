@@ -116,9 +116,7 @@ class InstructionManager {
 			"position: absolute;" +
 			"font: 12px arial,serif;";
 
-			this.instructionDiv.style.opacity = 0.0;		// we'll set to 1 after loading
-
-		document.body.appendChild(this.instructionDiv);
+			this.instructionDiv.style.opacity = 1.0;
 	}
 
 	hide() {

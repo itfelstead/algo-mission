@@ -19,7 +19,7 @@ import { LoadingManager } from './modules/loadingmanager.mjs';
 
 import { calculateMeshHeight, messageToMesh, limitViaScale, getScreenHeightAtCameraDistance, getScreenWidthAtCameraDistance, getBestSelectMapScreenWidth } from './modules/algoutils.js'; 	        // utility functions
 import { TitleScreen } from './modules/titlescreen.mjs';
-
+import { MapScreen } from './modules/mapscreen.mjs';
 
 // Global Namespace
 var ALGO = ALGO || {};
@@ -105,12 +105,7 @@ class AlgoMission {
         // Winner
         this.m_Trophy = null;
 
-        this.m_MapSelectionObjects = [];
 
-        this.m_NextArrow = null;
-        this.m_PrevArrow = null;
-        this.m_ArrowLoaded = false;
-        this.m_ArrowsSpinning = false;
 
         this.m_RetryButtonObjects = [];
 
@@ -124,6 +119,10 @@ class AlgoMission {
         this.m_StartupLoadJobNames = [ "bot", "sky", "map",  "winner audio", "audio" ];
 
         this.m_ClickBlackoutHack = false;
+
+        this.m_TitleScreen = null;
+
+        this.m_MapScreen = null;
     }
 
     // called by things that want to observe us
@@ -262,7 +261,7 @@ class AlgoMission {
                 break;
 
             case AlgoMission.TAppState.SELECTMAP:
-                // NOOP just wait for user to select a map
+                this.getMapScreen().update();       // e.g. spin arrows
                 break;
         }
 
@@ -410,8 +409,10 @@ class AlgoMission {
                 break;
             case AlgoMission.TAppState.SELECTMAP:
                 this.hidePlayArea();
-                this.m_MapSelectIndex = Math.max(0, this.m_SelectedMap);     // start selection at current map
-                this.displayMapScreen();
+                //this.m_MapSelectIndex = Math.max(0, this.m_SelectedMap);     // start selection at current map
+                let oldMap = this.m_SelectedMap;
+                this.m_SelectedMap = -1;
+                this.getMapScreen().show( oldMap );
                 break;
         }
     }
@@ -443,7 +444,7 @@ class AlgoMission {
             case AlgoMission.TAppState.RETRY:
                 break;
             case AlgoMission.TAppState.SELECTMAP:
-                this.removeMapScreen();     // if present
+                this.getMapScreen().hide();     // if present
                 break;
         }
     }
@@ -496,6 +497,8 @@ class AlgoMission {
         this.setupCollisionDetection();
 
         this.addEventListeners();
+
+        this.createMapScreen();
     }
 
     createTitleScreen() {
@@ -503,11 +506,18 @@ class AlgoMission {
         this.m_TitleScreen = new TitleScreen( this.m_Camera );
 
         this.m_TitleScreen.create( this.getBot() );
-
-   }
+    }
 
     getTitleScreen() {
         return this.m_TitleScreen;
+    }
+
+    createMapScreen() {
+        this.m_MapScreen = new MapScreen( this.m_Camera, this.m_GLTFLoader, this.getLoadingManager(), this.getMapManager() );
+    }
+
+    getMapScreen() {
+        return this.m_MapScreen;
     }
 
     hidePlayArea() {
@@ -895,133 +905,6 @@ class AlgoMission {
 
     removeDeathScreen() {
         this.removeRetryButtons();
-     }
-
-    displayMapScreen() {
-        this.m_SelectedMap = -1;
-        this.loadMapSelectModels( this.m_GLTFLoader );
-        this.waitForMapSelectLoad( this.runMapSelectScreen.bind(this), this );
-    }
-
-    loadMapSelectModels( glTFLoader ) {
-        if( this.m_ArrowLoaded == false ) {
-            this.loadModel( "./models/Arrow_JakobHenerey/scene.gltf", glTFLoader, this.arrowCreatedCb.bind(this) );
-        }
-    }
-
-    arrowCreatedCb( obj ) {
-        var threeGroup = obj.scene;
-        var object3d  = threeGroup.getObjectByName( "OSG_Scene" );
-       // this.m_Arrow = object3d;
-
-        object3d.scale.set(0.5, 0.5, 0.5);
-        object3d.rotation.set( 0, 1.6, 0 );
-
-        this.m_ArrowHeightOffset = this.calculateArrowHeightOffset( object3d );
-
-
-        // TODO - hack for now, figure out correct way to do this
-        this.m_PrevArrow = object3d.clone();
-        this.m_PrevArrow.children[0].children[0].children[0].children[0].name = "mapSelectPrevArrow";
-        
-        // TODO - hack for now, figure out correct way to do this
-        this.m_NextArrow = object3d.clone();
-        this.m_NextArrow.children[0].children[0].children[0].children[0].name = "mapSelectNextArrow";
-
-        this.m_ArrowLoaded = true;
-    }
-    
-    calculateArrowHeightOffset( arrow ) {
-        let arrowHeightOffset = 0;
-        arrow.traverse( function( node ) {
-
-            if ( node.type == "Mesh" ) { //node instanceof THREE.Mesh ) {
-                const box = new THREE.Box3();
-                box.copy( node.geometry.boundingBox ).applyMatrix4( node.matrixWorld );
-                let arrowSize = new THREE.Vector3();
-                box.getSize( arrowSize );
-                arrowHeightOffset = (arrowSize.y / 2);  
-            }
-        } );
-
-        return arrowHeightOffset;
-    }
-
-    waitForMapSelectLoad(isCreatedCallback, context) {
-        var waitForAll = setInterval(function () {
-          if (context.m_ArrowLoaded == true ) {
-            clearInterval(waitForAll);
-            isCreatedCallback();
-          }
-        }, 100);
-    }
-
-    runMapSelectScreen() {
-
-        // remove any old map meshes
-        this.removeMapSelectionMeshes();
-
-        let distanceFromCamera = 10;
-        let selectMapScreenSize = getBestSelectMapScreenWidth( distanceFromCamera, this.m_Camera.aspect, this.m_Camera.fov );
-
-        if( selectMapScreenSize < 17 ) {
-            this.m_MapBatchSize = 1;
-        }
-        else if( selectMapScreenSize < 20 ) {
-            this.m_MapBatchSize = 2;
-        }
-        else {
-            this.m_MapBatchSize = 3;
-        }
-
-        let numMapsPerPage = this.m_MapBatchSize;
-        if( this.m_MapManager.jsonMaps.length < this.m_MapBatchSize ) {
-            numMapsPerPage = this.m_MapManager.jsonMaps.length;
-        }
-
-        let mapSpacing = selectMapScreenSize * 0.05; // 5% spacing
-
-        let spaceForSpacing = ((numMapsPerPage+1) * mapSpacing);
-
-        let thumbnailWidth = (selectMapScreenSize-spaceForSpacing) / numMapsPerPage;
-
-        // camera coordinates, 0,0 is center, so need to offset
-        let xOffset = -(selectMapScreenSize/2) + mapSpacing;   // .. as camera 0,0 is middle of screen
-        xOffset += (thumbnailWidth/2);                         // .. as coordinates are in middle of tile
-        let yOffset = 0;                                       // fine, keep it in the middle
-
-        let currentMapOffset = Math.max(this.m_MapSelectIndex, 0);
- 
-        this.displayMapSet( numMapsPerPage, currentMapOffset, xOffset, thumbnailWidth, mapSpacing, distanceFromCamera );
-    }
-
-    removeMapScreen() {
-        this.removeMapSelectionMeshes();
-        this.m_ArrowsSpinning = false;
-
-        // Until we sort the instruction panel / control panel too;
-            var fadeStep = 0.1;
-            var fadePauseMs = 100;
-            var fade = 1.0;
-            var self = this;
-            (function fadeDivs() {
-                self.m_InstructionMgr.setWindowOpacity(1.0 - fade);
-    
-                fade -= fadeStep;
-                if (fade > 0) {
-                    setTimeout(fadeDivs, fadePauseMs);
-                }
-            })();
-    }
-
-    removeMapSelectionMeshes( ) {
-        for( var i = 0; i < this.m_MapSelectionObjects.length; i++ ) {
-            this.m_Camera.remove( this.m_MapSelectionObjects[i] );
-        }
-        this.m_MapSelectionObjects = [];
-
-        this.m_Camera.remove( this.m_Camera.getObjectByName("mapSelectNextSpotlight") );
-        this.m_Camera.remove( this.m_Camera.getObjectByName("mapSelectPrevSpotlight") );
     }
 
     removeRetryButtons() {
@@ -1029,151 +912,6 @@ class AlgoMission {
             this.m_Camera.remove( this.m_RetryButtonObjects[i] );
         }
         this.m_RetryButtonObjects = [];
-    }
-
-    displayMapSet( numToShow, firstId, xOffset, thumbnailWidth, mapSpacing, distanceFromCamera ) {
-        let screenOrder = 0;
-        let thumbnailHeight = thumbnailWidth;
-        let mapY = 0;
-        let batch = Math.trunc(firstId / numToShow);
-        let mapIdx = numToShow*batch;
-        
-        let lastMapToShow = Math.min( this.m_MapManager.jsonMaps.length, (numToShow*batch)+numToShow );
-        for( ; mapIdx < lastMapToShow; ++mapIdx ) {
-            var mapDef = this.m_MapManager.jsonMaps[ mapIdx ];
-            if( !mapDef.hasOwnProperty('thumbnailTexture') ) {
-                console.log("WARNING: Map " + mapIdx + " lacks a thumbnail");
-                continue;
-            }
-
-            this.addMapSelectThumbnail( mapDef, mapIdx, thumbnailWidth, thumbnailHeight, screenOrder, mapSpacing, xOffset, mapY, distanceFromCamera );
-            screenOrder++;
-        }
-
-        let arrowYOffset = mapY + (thumbnailWidth/2) + this.m_ArrowHeightOffset; 
-
-        if( lastMapToShow < this.m_MapManager.jsonMaps.length )
-        {
-            this.addMapSelectArrow( this.m_NextArrow, "mapSelectNextArrow", 3, -(arrowYOffset), -distanceFromCamera, 1.6 )
-        }
-
-        if( batch > 0 ) {
-            this.addMapSelectArrow( this.m_PrevArrow, "mapSelectPrevArrow", -3, -(arrowYOffset), -distanceFromCamera, -1.6 )
-        }
- 
-        // Set the arrows spinning only once per 'selectLevel' state
-        if( !this.m_ArrowsSpinning ) {
-
-            this.m_ArrowsSpinning = true;
-
-            let instance = this;
-            let animDelayMs = 30;
-            let rotateStep = 0.03;
-            (function animateArrowSpin() {
-                // Spin while on select screen and has parent (i.e. camera)
-                if (instance.m_State == AlgoMission.TAppState.SELECTMAP ) 
-                {
-                    instance.m_NextArrow.rotation.x = instance.m_NextArrow.rotation.x - rotateStep;
-                    instance.m_PrevArrow.rotation.x = instance.m_PrevArrow.rotation.x - rotateStep;
-    
-                    setTimeout(animateArrowSpin, animDelayMs);
-                }
-            })();
-        }
-
-        let spotlight = new THREE.SpotLight( 0xffffff, 1, 20, Math.PI/2  );
-        spotlight.position.set(this.m_NextArrow.position.x,this.m_NextArrow.position.y,0);
-        spotlight.target = this.m_NextArrow;
-        spotlight.name = "mapSelectNextSpotlight";
-        this.m_Camera.add(spotlight);
-
-        let prevSpotlight = new THREE.SpotLight( 0xffffff, 1, 20, Math.PI/2  );
-        prevSpotlight.position.set(this.m_PrevArrow.position.x,this.m_PrevArrow.position.y,0);
-        prevSpotlight.target = this.m_PrevArrow;
-        prevSpotlight.name = "mapSelectPrevSpotlight";
-        this.m_Camera.add(prevSpotlight);
-    }
-
-    addMapSelectThumbnail( mapDef, mapIdx, thumbnailWidth, thumbnailHeight, screenOrder, mapSpacing, xOffset, mapY, distanceFromCamera ) {
-
-        let mapSelectGroup = new THREE.Group();
-
-        var thumbnailTexture = mapDef.thumbnailTexture;
-    
-        let planeGeo = new THREE.PlaneGeometry(thumbnailWidth, thumbnailHeight);
-        let material = new THREE.MeshBasicMaterial( { side:THREE.DoubleSide, map:thumbnailTexture, transparent:true, opacity:1 } );
-        let thumbMesh = new THREE.Mesh(planeGeo, material);
-
-        let mapX = (screenOrder * thumbnailWidth) + (screenOrder * mapSpacing);
-        mapX += xOffset;    // center
-        
-        thumbMesh.position.set( mapX, mapY, -distanceFromCamera );
-        thumbMesh.name = mapIdx;
-        
-        mapSelectGroup.add(thumbMesh);
-
-        // Add completion awards
-        let completionRate = this.m_MapManager.getCompletionRate(mapIdx);
-
-        let spacing = 0.5;
-        let awardXOffset = thumbMesh.position.x - (thumbnailWidth/2);
-        let awardYOffset = thumbMesh.position.y + (thumbnailHeight/2);
-
-        if( completionRate > 0 ) {
-            let colour = 0xd9a004; // bronze
-            if( completionRate >= 1 ) {
-                colour = 0xdec990; // gold
-            }
-            else if( completionRate >= 0.5 ) {
-                colour = 0xe8e5dc; // silver
-            }
-
-            const geometry = new THREE.CircleGeometry( 0.25, 16 );
-            const material = new THREE.MeshStandardMaterial( { color: colour } );
-            const awardMesh = new THREE.Mesh( geometry, material );
-            awardMesh.position.set( awardXOffset+ spacing, awardYOffset - spacing, -(distanceFromCamera) )
-            mapSelectGroup.add( awardMesh );
-        }
-
-        // Add highest score
-        let highestScore = this.m_MapManager.getHighScore(mapIdx);
-        let highScoreMsg = "High score: " + highestScore.toString();
-        let highScoreMesh = messageToMesh(document, highScoreMsg, 0.33, 0xFFFFFF, undefined);
-        let bottomOffset = thumbMesh.position.y - (thumbnailHeight/2);
-        highScoreMesh.position.set( awardXOffset + (highScoreMesh.userData.width/2), bottomOffset + (highScoreMesh.userData.height/2), -10 );
-        highScoreMesh.name = "highScoreMsg";
-        mapSelectGroup.add(highScoreMesh);
-
-        // Add map Id text
-        let mapIdTextHeight = 0.75;
-        let mapIdText = "Map " + mapIdx + ": " +  mapDef.name;
-        let mapIdMsgMesh = messageToMesh(document, mapIdText, mapIdTextHeight, 0xFFFFFF, undefined);
-        limitViaScale( mapIdMsgMesh, mapIdMsgMesh.userData.width, thumbnailWidth );
-        mapIdMsgMesh.position.set( thumbMesh.position.x, thumbMesh.position.y+(thumbnailHeight/2)+mapIdTextHeight, -(distanceFromCamera) );
-        mapIdMsgMesh.name = mapIdx;
-        mapSelectGroup.add( mapIdMsgMesh );
-
-        // Add map descriptive text
-        let mapDescrTextHeight = 0.4;
-        let mapDescrText = mapDef.instructions;
-        let mapDescrMesh = messageToMesh(document, mapDescrText, mapDescrTextHeight, 0xFFFFFF, undefined);
-        limitViaScale( mapDescrMesh, mapDescrMesh.userData.width, thumbnailWidth );
-        mapDescrMesh.position.set( thumbMesh.position.x, thumbMesh.position.y-(thumbnailHeight/2)-mapDescrTextHeight, -(distanceFromCamera) );
-        mapDescrMesh.name = mapIdx;
-        mapSelectGroup.add( mapDescrMesh );
-
-        this.m_MapSelectionObjects.push(mapSelectGroup);
-        this.m_Camera.add(mapSelectGroup);
-    }
-
-    addMapSelectArrow( arrow, name, xPos, yPos, zPos, yRot ) {
-        arrow.scale.set(0.5,0.5,0.5);
-        arrow.rotation.set( 0, yRot, 0 );
-        arrow.position.set( xPos, yPos, zPos );
-        arrow.name = name;
-        
-        this.m_MapSelectionObjects.push(arrow);
-        this.m_Camera.add(arrow);
     }
 
     setupCollisionDetection() {
@@ -1316,33 +1054,18 @@ class AlgoMission {
                 // NOOP
                 break;
             case AlgoMission.TAppState.SELECTMAP:
-                let mapSelected = this.detectMapSelection(event.clientX, event.clientY, this.m_Raycaster );
-                if( mapSelected == "mapSelectPrevArrow" ) {
-                    let batch = Math.trunc(this.m_MapSelectIndex / this.m_MapBatchSize);
-                    batch--;
-                    this.m_MapSelectIndex = Math.max(0, batch * this.m_MapBatchSize);
-                    this.displayMapScreen();
-                }
-                else if( mapSelected == "mapSelectNextArrow" ) {
-                    let batch = Math.trunc(this.m_MapSelectIndex / this.m_MapBatchSize);
-                    batch++;
-
-                    if( batch * this.m_MapBatchSize >= this.m_MapManager.jsonMaps.length ) {
-                        batch--;
-                    }
-
-                    this.m_MapSelectIndex = batch * this.m_MapBatchSize;
-                    this.displayMapScreen();
-                }
-                if( mapSelected > -1 ) {
-                    this.m_SelectedMap = mapSelected;
+                let mapSelected = this.detectButtonPress( event.clientX, event.clientY, this.m_Raycaster, this.getMapScreen().getMapSelectionObjects() );
+                let mapId = this.getMapScreen().handleClick(mapSelected);
+                if( mapId != -1 ) {
+                    // a new map was selected
+                    this.m_SelectedMap = mapId;
                 }
                 break;
         }
     }
 
 	detectMapSelection(xPos, yPos, raycaster) {
-        return this.detectButtonPress( xPos, yPos, raycaster, this.m_MapSelectionObjects );
+        return this.detectButtonPress( xPos, yPos, raycaster, this.getMapScreen().getMapSelectionObjects() );
     }
 
     detectRetrySelection( xPos, yPos, raycaster) {

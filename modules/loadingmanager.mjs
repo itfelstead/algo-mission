@@ -138,10 +138,15 @@ class LoadingManager {
 
     update() {
 
+        // Note: this is only called when the game is in the 'loading' screen state.
+        // The loading manager can still be used to load items outside of this state
+        // (there just won't be any progress update shared)
+
         this.animateJobs();
         
         if( this.m_RemoveScreen ) {
             this.cleanupScreen();
+            this.m_RemoveScreen = false;
         }
     }
 
@@ -176,8 +181,8 @@ class LoadingManager {
 
     animateJobs() {
 
-        let finalZ = 5;     // behind camera
-        let zoomStep = 0.6;
+        const finalZ = 5;     // behind camera
+        const zoomStep = 0.6;
 
         for (var job in this.m_JobMonitor) {
             let jobMesh = this.m_GameMgr.getCamera().getObjectByName(job);
