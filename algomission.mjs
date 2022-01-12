@@ -20,6 +20,8 @@ import { LoadingManager } from './modules/loadingmanager.mjs';
 import { calculateMeshHeight, messageToMesh, limitViaScale, getScreenHeightAtCameraDistance, getScreenWidthAtCameraDistance, getBestSelectMapScreenWidth } from './modules/algoutils.js'; 	        // utility functions
 import { TitleScreen } from './modules/titlescreen.mjs';
 import { MapScreen } from './modules/mapscreen.mjs';
+import { WinScreen } from './modules/winscreen.mjs';
+import { DeathScreen } from './modules/deathscreen.mjs';
 
 // Global Namespace
 var ALGO = ALGO || {};
@@ -100,14 +102,8 @@ class AlgoMission {
         // audio support
         this.m_AudioListener = null;
         this.m_AmbientButtonClickSound = null;
-        this.m_WinnerSound = null;
- 
-        // Winner
-        this.m_Trophy = null;
-
-
-
-        this.m_RetryButtonObjects = [];
+        
+        
 
         this.m_Observers = [];
 
@@ -116,13 +112,17 @@ class AlgoMission {
         this.m_LoadingManager = null;
 
         // These are the jobs that we need to wait for (i.e. things the loading screen covers)
-        this.m_StartupLoadJobNames = [ "bot", "sky", "map",  "winner audio", "audio" ];
+        this.m_StartupLoadJobNames = [ "bot", "sky", "map", "audio" ];
 
         this.m_ClickBlackoutHack = false;
 
         this.m_TitleScreen = null;
 
         this.m_MapScreen = null;
+
+        this.m_WinScreen = null;
+
+        this.m_DeathScreen = null;
     }
 
     // called by things that want to observe us
@@ -212,7 +212,7 @@ class AlgoMission {
         this.gameLoop(); 	// intial kickoff, subsequest calls via requestAnimationFrame()
     }
 
-    actOnState() {
+    actOnState( timeElapsed ) {
         switch (this.m_State) {
             case AlgoMission.TAppState.INITIAL:
                 // NOOP
@@ -248,11 +248,11 @@ class AlgoMission {
                 break;
 
             case AlgoMission.TAppState.WIN:
-                // NOOP just wait for user to click a button
+                this.getWinScreen().update( timeElapsed );   // e.g. animate trophy
                 break;
 
             case AlgoMission.TAppState.DEAD:
-                // NOOP - we're just waiting for user to restart or choose map
+                this.getDeathScreen().update();
                 this.m_MouseControls.enabled = false;
                 break;
 
@@ -261,7 +261,7 @@ class AlgoMission {
                 break;
 
             case AlgoMission.TAppState.SELECTMAP:
-                this.getMapScreen().update();       // e.g. spin arrows
+                this.getMapScreen().update();       // e.g. animate arrows
                 break;
         }
 
@@ -333,9 +333,8 @@ class AlgoMission {
                 break;
 
             case AlgoMission.TAppState.WIN:
-                if (this.m_SelectMap == true) {
+                if (this.getWinScreen().isFinished()) {
                     newState = AlgoMission.TAppState.SELECTMAP;
-                    this.m_SelectMap = false;
                 }
                 break;
 
@@ -398,11 +397,11 @@ class AlgoMission {
                 break;
             case AlgoMission.TAppState.WIN:
                 this.getControlPanel().hide();
-                this.displayWinnerScreen();
+                this.getWinScreen().show();
                 break;
             case AlgoMission.TAppState.DEAD:
                 this.hidePlayArea();
-                this.displayDeathScreen();
+                this.getDeathScreen().show();
                 break;
             case AlgoMission.TAppState.RETRY:
                 this.showPlayArea();
@@ -436,10 +435,10 @@ class AlgoMission {
             case AlgoMission.TAppState.RUNNING:
                 break;
             case AlgoMission.TAppState.WIN:
-                this.removeWinnerScreen();
+                this.getWinScreen().hide();
                 break;
             case AlgoMission.TAppState.DEAD:
-                this.removeDeathScreen();
+                this.getDeathScreen().hide();
                 break;
             case AlgoMission.TAppState.RETRY:
                 break;
@@ -499,6 +498,10 @@ class AlgoMission {
         this.addEventListeners();
 
         this.createMapScreen();
+
+        this.createWinScreen();
+
+        this.createDeathScreen();
     }
 
     createTitleScreen() {
@@ -513,12 +516,29 @@ class AlgoMission {
     }
 
     createMapScreen() {
-        this.m_MapScreen = new MapScreen( this.m_Camera, this.m_GLTFLoader, this.getLoadingManager(), this.getMapManager() );
+        this.m_MapScreen = new MapScreen( this.m_Camera, this.getLoadingManager(), this.getMapManager() );
     }
 
     getMapScreen() {
         return this.m_MapScreen;
     }
+    
+    createWinScreen() {
+        this.m_WinScreen = new WinScreen( this.m_Camera, this.m_AudioListener,  this.getLoadingManager() );
+    }
+
+    getWinScreen() {
+        return this.m_WinScreen;
+    }
+
+    createDeathScreen() {
+        this.m_DeathScreen = new DeathScreen( this.m_Camera );
+    }
+
+    getDeathScreen() {
+        return this.m_DeathScreen;
+    }
+
 
     hidePlayArea() {
         this.getControlPanel().hide();
@@ -631,26 +651,11 @@ class AlgoMission {
         this.m_AmbientButtonClickSound = new THREE.Audio(this.m_AudioListener);
         this.m_Scene.add(this.m_AmbientButtonClickSound);
 
-        var loader = new THREE.AudioLoader();
-        var self = this;
-        loader.load('audio/107132__bubaproducer__button-14.wav',
-            function (audioBuffer) {
-                //on load
-                self.m_AmbientButtonClickSound.setBuffer(audioBuffer);
-                self.getLoadingManager().markJobComplete("audio");
-            }
-        );
+        this.getLoadingManager().loadAudio( 'audio/107132__bubaproducer__button-14.wav', this.audioLoadedCb.bind(this), "audio");
+    }
 
-        this.m_WinnerSound = new THREE.Audio(this.m_AudioListener);
-        this.m_Scene.add(this.m_WinnerSound);
-        loader.load('audio/462362__breviceps__small-applause.wav',
-            function (winnerAudioBuffer) {
-                //on load
-                self.m_WinnerSound.setBuffer(winnerAudioBuffer);
-                self.getLoadingManager().markJobComplete("winner audio");
-            }
-        );
-
+    audioLoadedCb( audioBuffer ) {
+        this.m_AmbientButtonClickSound.setBuffer(audioBuffer);
     }
 
     // calls botCb() when bot is ready
@@ -668,7 +673,7 @@ class AlgoMission {
 
 
     addLoadingManager() {
-        this.m_LoadingManager = new LoadingManager( this, this.m_StartupLoadJobNames );
+        this.m_LoadingManager = new LoadingManager( this, this.m_GLTFLoader, this.m_StartupLoadJobNames );
     }
 
     addMapManager(textureLoader) {
@@ -708,210 +713,6 @@ class AlgoMission {
     addEventListeners() {
         window.addEventListener('resize', this.handleResize.bind(this), false);
         setTimeout(this.handleResize.bind(this), 1);
-    }
-
-    displayWinnerScreen() {
-        this.loadWinnerModels( this.m_GLTFLoader );
-        this.waitForWinnerLoad( this.runWinnerScreen.bind(this), this );
-    }
-
-    loadWinnerModels( glTFLoader ) {
-        const jobName = "trophy";
-        if( this.getLoadingManager().jobExists() == false ) {
-            this.getLoadingManager().addJobMonitor(jobName);
-            this.loadModel( "./models/Trophy_SyntyStudios/scene.gltf", glTFLoader, this.trophyCreatedCb.bind(this), jobName );
-        }
-    }
-
-    trophyCreatedCb( obj ) {
-        var threeGroup = obj.scene;
-        var object3d  = threeGroup.getObjectByName( "OSG_Scene" );
-        this.m_Trophy = object3d;
-        this.getLoadingManager().markJobComplete("trophy");
-    }
-
-    waitForWinnerLoad(isCreatedCallback, context) {
-        var waitForAll = setInterval(function () {
-          if (context.getLoadingManager().isLoaded("trophy") == true ) {
-            clearInterval(waitForAll);
-            isCreatedCallback();
-          }
-        }, 100);
-    }
-
-    loadModel(model, glTFLoader, isCreatedCallback, optionalJobName ) {
-        var instance = this; 	// so we can access bot inside anon-function
-        glTFLoader.load( model, 
-            // Loaded    
-            function (gltf) {
-                isCreatedCallback(gltf);
-            },
-            // Progress
-            function (xhr ) {
-                if( optionalJobName ) {
-                    instance.getLoadingManager().updateJobProgress(optionalJobName, xhr.loaded / xhr.total  );
-                }
-                console.log( model + " " + ( xhr.loaded / xhr.total * 100 ) + '% loaded' );
-            },
-            // Error
-            function( error ) {
-                if( optionalJobName ) {
-                    instance.getLoadingManager().markJobFailed(optionalJobName);
-                }
-                console.log( 'Failed to load model ' + model );
-            }
-        );
-    }
-
-    runWinnerScreen( ) {
- 
-        var instance = this;
-
-        this.m_WinnerSound.play();
-
-        let startZ = 1;
-        this.m_Trophy.position.set( 0, -1, startZ );     // note; start behind camera (Z) for later zoom
-        this.m_Camera.add(this.m_Trophy);
-
-        let trophySpotlight = new THREE.SpotLight( 0xffffff, 1, 10 );
-        trophySpotlight.position.set(0,0,1);
-        trophySpotlight.target = this.m_Trophy;
-        trophySpotlight.name = "trophySpotlight";
-        this.m_Camera.add(trophySpotlight);
-        
-        const trophyHeight = calculateMeshHeight( this.m_Trophy );
-
-        let distanceFromCamera = 10;
-
-		const screenHeight = getScreenHeightAtCameraDistance( distanceFromCamera, this.m_Camera.fov );
-        const screenWidth = getScreenWidthAtCameraDistance( distanceFromCamera, screenHeight, this.m_Camera.aspect );
-
-        let messageMesh = messageToMesh(document, "Well done!", 1.25, 0xFFFFFF, undefined);
-        messageMesh.name = "wellDoneMsg";
-        limitViaScale( messageMesh, messageMesh.userData.width, screenWidth );
-        messageMesh.position.set( 0, -(trophyHeight + (messageMesh.userData.height/2)), -distanceFromCamera );
-        this.m_Camera.add(messageMesh);
-
-        let newMissionMesh = messageToMesh(document, "(click mouse for a new mission)", 1, 0xDDDDDD, undefined);
-        newMissionMesh.name = "newMissionMsg";
-        limitViaScale( newMissionMesh, newMissionMesh.userData.width, screenWidth );
-        newMissionMesh.position.set( 0, messageMesh.position.y - (messageMesh.userData.height/2) - newMissionMesh.userData.height, -distanceFromCamera );
-        
-        let animDelayMs = 30;
-
-        let finalZ = -5;
-        let zoomStep = 0.3;
-        (function animateTrophyZoom() {
-            if( instance.m_Trophy.position.z > finalZ  ) {
-                instance.m_Trophy.position.z = instance.m_Trophy.position.z - zoomStep;
-                setTimeout(animateTrophyZoom, animDelayMs);
-            }
-        })();
-
-        let buttonRevealDelayMs = 4000;
-        (function animateTrophyClickMsg() {
-            if( instance.m_State != AlgoMission.TAppState.WIN ) {
-                // if user already clicked us off of the win screen, then forget it
-                return;
-            }
-
-            if( buttonRevealDelayMs > 0 ) {   
-                buttonRevealDelayMs -= animDelayMs;
-                if( buttonRevealDelayMs <= 0 ) {
-                    // Time to show the options
-                    instance.m_Camera.add(newMissionMesh);
-                }
-                else {
-                    setTimeout(animateTrophyClickMsg, animDelayMs);
-                }
-            }
-        })();
-
-        let rotateStep = 0.03;
-        (function animateTrophySpin() {
-            instance.m_Trophy.rotation.y = instance.m_Trophy.rotation.y - rotateStep;
-            // Spin while on win
-            if (instance.m_State == AlgoMission.TAppState.WIN ) {
-                setTimeout(animateTrophySpin, animDelayMs);
-            }
-        })();
-    }
-
-    removeWinnerScreen() {
-
-        let missionMsg = this.m_Camera.getObjectByName("newMissionMsg");
-        if( missionMsg ) {
-            this.m_Camera.remove( missionMsg );
-        }
-
-        let wellDoneMsg = this.m_Camera.getObjectByName("wellDoneMsg");
-        if( wellDoneMsg ) {
-            this.m_Camera.remove( wellDoneMsg );
-        }
-
-        let finalZ = 1;
-        let zoomStep = 0.6;
-        let animDelayMs = 30;
-        var instance = this;
-        (function animateTrophy() {
-            if( instance.m_Trophy.position.z < finalZ  ) {
-                instance.m_Trophy.position.z = instance.m_Trophy.position.z + zoomStep;
-                setTimeout(animateTrophy, animDelayMs);
-            }
-            else {
-                instance.m_Camera.remove(instance.m_Trophy);
-
-                let trophySpotlight = instance.m_Camera.getObjectByName("trophySpotlight");
-                if( trophySpotlight ) {
-                    instance.m_Camera.remove(trophySpotlight);
-                }
-            }
-        })();
-    }
-
-    displayDeathScreen() {
-
-        let distanceFromCamera = 10;
-
-        let screenWidth = getBestSelectMapScreenWidth(distanceFromCamera, this.m_Camera.aspect, this.m_Camera.fov);
-        let halfScreen = (screenWidth/2);    // as it is 0 centered
-        let maxButtonWidth = screenWidth/4;
-        let textHeight = 1;
-
-        let retryMesh = messageToMesh(document, "Try again?", textHeight, 0xFFFFFF, undefined);
-        retryMesh.name = "retryButton";
-        limitViaScale( retryMesh, retryMesh.userData.width, maxButtonWidth );
-        let retryScale = retryMesh.scale.x;
-        let chooseMapMesh = messageToMesh(document, "Choose map", textHeight, 0xFFFFFF, undefined);
-        chooseMapMesh.name = "chooseMapButton";
-        limitViaScale( chooseMapMesh, chooseMapMesh.userData.width, maxButtonWidth );
-        let chooseScale = chooseMapMesh.scale.x;
-
-        let retryActualSize = retryMesh.userData.width*retryScale;
-        let retryXPos = ((halfScreen - retryActualSize) / 2) + (retryActualSize/2); 
-
-        retryMesh.position.set( -retryXPos, 0, -distanceFromCamera );
-
-        let chooseActualSize = chooseMapMesh.userData.width*chooseScale;
-        let chooseXPos = ((halfScreen - chooseActualSize) / 2) + (chooseActualSize/2); 
-        chooseMapMesh.position.set( chooseXPos, 0, -distanceFromCamera );
-
-        this.m_RetryButtonObjects.push(retryMesh);
-        this.m_RetryButtonObjects.push(chooseMapMesh);
-
-        this.m_Camera.add(retryMesh);
-        this.m_Camera.add(chooseMapMesh);
-    }
-
-    removeDeathScreen() {
-        this.removeRetryButtons();
-    }
-
-    removeRetryButtons() {
-        for( var i = 0; i < this.m_RetryButtonObjects.length; i++ ) {
-            this.m_Camera.remove( this.m_RetryButtonObjects[i] );
-        }
-        this.m_RetryButtonObjects = [];
     }
 
     setupCollisionDetection() {
@@ -1039,10 +840,10 @@ class AlgoMission {
             case AlgoMission.TAppState.WIN:
                 // If we're on the winner screen, then a click just means
                 // select next map - don't detect any other button presses
-                this.m_SelectMap = true;
+                this.getWinScreen().hide();
                 break;
             case AlgoMission.TAppState.DEAD:
-                let buttonSelected = this.detectRetrySelection( event.clientX, event.clientY, this.m_Raycaster );
+                let buttonSelected = this.detectButtonPress( event.clientX, event.clientY, this.m_Raycaster, this.getDeathScreen().getActiveObjects() );
                 if( buttonSelected == "retryButton" ) {
                     this.m_Retry = true;
                 }
@@ -1062,14 +863,6 @@ class AlgoMission {
                 }
                 break;
         }
-    }
-
-	detectMapSelection(xPos, yPos, raycaster) {
-        return this.detectButtonPress( xPos, yPos, raycaster, this.getMapScreen().getMapSelectionObjects() );
-    }
-
-    detectRetrySelection( xPos, yPos, raycaster) {
-        return this.detectButtonPress( xPos, yPos, raycaster, this.m_RetryButtonObjects );
     }
 
 	detectInstructionPress(xPos, yPos, raycaster) {

@@ -9,19 +9,25 @@
 // Global Namespace
 var ALGO = ALGO || {};
 
+import * as THREE from 'https://cdn.skypack.dev/pin/three@v0.135.0-pjGUcRG9Xt70OdXl97VF/mode=imports,min/optimized/three.js';
+import { GLTFLoader } from 'https://cdn.skypack.dev/three@0.135.0/examples/jsm/loaders/GLTFLoader.js';
+
 import { messageToMesh, limitViaScale, determineScale, getScreenHeightAtCameraDistance, getScreenWidthAtCameraDistance } from './algoutils.js'; 	        // utility functions
 
 class LoadingManager {
 
-    constructor( gameMgr, jobs ) {
+    constructor( gameMgr, gltfLoader, jobs ) {
         this.m_GameMgr = gameMgr;
 
+        this.m_GLTFLoader = gltfLoader;
+
+        this.m_AudioLoader = new THREE.AudioLoader();
+
         this.m_JobMonitor = [];
-        this.addJobMonitors( jobs );
+        this.addJobMonitors( jobs );    // Note: other jobs may be added later via .addJobMonitor()
 
-        this.m_RemoveScreen = false;
-
-        this.m_Finished = false;
+        this.m_RemoveScreenTriggered = false;
+        this.m_ScreenCleanupFinished = false;
     }
 
     addJobMonitors( jobs ) {
@@ -144,9 +150,9 @@ class LoadingManager {
 
         this.animateJobs();
         
-        if( this.m_RemoveScreen ) {
+        if( this.m_RemoveScreenTriggered ) {
             this.cleanupScreen();
-            this.m_RemoveScreen = false;
+            this.m_RemoveScreenTriggered = false;
         }
     }
 
@@ -171,12 +177,12 @@ class LoadingManager {
                 } 
             }
 
-            this.m_Finished = true;     // indicate to game that we're done
+            this.m_ScreenCleanupFinished = true;     // indicate to game that we're done
         }
     }
 
     isFinished() {
-        return this.m_Finished;
+        return this.m_ScreenCleanupFinished;
     }
 
     animateJobs() {
@@ -214,7 +220,59 @@ class LoadingManager {
 
     startLoadingScreenShutdown() {
         // will start removal on next call to update() (i.e. via gameloop)
-        this.m_RemoveScreen = true;
+        this.m_RemoveScreenTriggered = true;
+    }
+
+    loadModel(file, isCreatedCallback, optionalJobName ) {
+        var instance = this;
+
+        if( optionalJobName &&
+            !this.jobExists(optionalJobName) ) {
+            this.addJobMonitor(optionalJobName);
+        }
+
+        this.m_GLTFLoader.load( file, 
+            // Loaded    
+            function (gltf) {
+                isCreatedCallback(gltf);
+                if( optionalJobName ) {
+                    instance.markJobComplete(optionalJobName);
+                }
+            },
+            // Progress
+            function (xhr ) {
+                if( optionalJobName ) {
+                    instance.updateJobProgress(optionalJobName, xhr.loaded / xhr.total  );
+                }
+                console.log( file + " " + ( xhr.loaded / xhr.total * 100 ) + '% loaded' );
+            },
+            // Error
+            function( error ) {
+                if( optionalJobName ) {
+                    instance.markJobFailed(optionalJobName);
+                }
+                console.log( 'Failed to load model ' + file );
+            }
+        );
+    }
+
+    loadAudio( file, isLoadedCallback, optionalJobName ) {
+        var instance = this;
+
+        if( optionalJobName &&
+            !this.jobExists(optionalJobName) ) {
+            this.addJobMonitor(optionalJobName);
+        }
+
+        this.m_AudioLoader.load( file,
+            function (audioBuffer) {
+                //on load
+                isLoadedCallback( audioBuffer );
+                if( optionalJobName ) {
+                    instance.markJobComplete(optionalJobName);
+                }
+            }
+        );
     }
 }
 

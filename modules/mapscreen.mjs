@@ -17,11 +17,10 @@ class MapScreen {
 
     static LOADER_JOB_NAME = "arrows";
 
-    constructor( camera, gltfLoader, loadingManager, mapManager ) {
+    constructor( camera, loadingManager, mapManager ) {
 
         this.m_MapManager = mapManager;
         this.m_LoadingManager = loadingManager;
-        this.m_GLTFLoader = gltfLoader;
         this.m_MapSelectionObjects = [];
 
         this.m_Camera = camera;
@@ -62,7 +61,11 @@ class MapScreen {
 
     show( currentMap ) {
         this.m_MapSelectIndex = Math.max(0, currentMap);     // start selection at current map
-        this.loadMapSelectModels( this.m_GLTFLoader, MapScreen.LOADER_JOB_NAME );
+
+        if( this.m_ArrowLoaded == false ) {
+            this.m_LoadingManager.loadModel( "./models/Arrow_JakobHenerey/scene.gltf", this.arrowCreatedCb.bind(this), MapScreen.LOADER_JOB_NAME );
+        }
+
         this.waitForMapSelectLoad( this.runMapSelectScreen.bind(this), this );
     }
 
@@ -283,37 +286,6 @@ class MapScreen {
         this.m_MapSelectionObjects.push(arrow);
         this.m_Camera.add(arrow);
     }
-
-    loadMapSelectModels( glTFLoader, jobName ) {
-        if( this.m_ArrowLoaded == false ) {
-            this.loadModel( "./models/Arrow_JakobHenerey/scene.gltf", glTFLoader, this.arrowCreatedCb.bind(this), jobName );
-        }
-    }
-
-    loadModel(model, glTFLoader, isCreatedCallback, optionalJobName ) {
-        var instance = this; 	// so we can access bot inside anon-function
-        glTFLoader.load( model, 
-            // Loaded    
-            function (gltf) {
-                isCreatedCallback(gltf);
-            },
-            // Progress
-            function (xhr ) {
-                if( optionalJobName ) {
-                    instance.m_LoadingManager.updateJobProgress(optionalJobName, xhr.loaded / xhr.total  );
-                }
-                console.log( model + " " + ( xhr.loaded / xhr.total * 100 ) + '% loaded' );
-            },
-            // Error
-            function( error ) {
-                if( optionalJobName ) {
-                    instance.m_LoadingManager.markJobFailed(optionalJobName);
-                }
-                console.log( 'Failed to load model ' + model );
-            }
-        );
-    }
-
 
     arrowCreatedCb( obj ) {
         var threeGroup = obj.scene;
