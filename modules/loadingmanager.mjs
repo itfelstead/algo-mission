@@ -16,12 +16,14 @@ import { messageToMesh, limitViaScale, determineScale, getScreenHeightAtCameraDi
 
 class LoadingManager {
 
-    constructor( gameMgr, gltfLoader, jobs ) {
+    constructor( gameMgr, jobs ) {
         this.m_GameMgr = gameMgr;
 
-        this.m_GLTFLoader = gltfLoader;
+        this.m_GLTFLoader = new GLTFLoader();
 
         this.m_AudioLoader = new THREE.AudioLoader();
+
+        this.m_TextureLoader = new THREE.TextureLoader();
 
         this.m_JobMonitor = [];
         this.addJobMonitors( jobs );    // Note: other jobs may be added later via .addJobMonitor()
@@ -223,7 +225,7 @@ class LoadingManager {
         this.m_RemoveScreenTriggered = true;
     }
 
-    loadModel(file, isCreatedCallback, optionalJobName ) {
+    loadModel(file, isLoadedCallback, optionalJobName ) {
         var instance = this;
 
         if( optionalJobName &&
@@ -234,7 +236,7 @@ class LoadingManager {
         this.m_GLTFLoader.load( file, 
             // Loaded    
             function (gltf) {
-                isCreatedCallback(gltf);
+                isLoadedCallback(gltf);
                 if( optionalJobName ) {
                     instance.markJobComplete(optionalJobName);
                 }
@@ -271,6 +273,39 @@ class LoadingManager {
                 if( optionalJobName ) {
                     instance.markJobComplete(optionalJobName);
                 }
+            }
+        );
+    }
+
+    loadTexture( textureFile, isLoadedCallback, optionalJobName ) {
+
+        var instance = this;
+
+        if( optionalJobName &&
+            !this.jobExists(optionalJobName) ) {
+            this.addJobMonitor(optionalJobName);
+        }
+
+        this.m_TextureLoader.load( textureFile,
+            // on load
+            function (texture) {
+                isLoadedCallback( texture );
+                if( optionalJobName ) {
+                    instance.markJobComplete( optionalJobName );
+                }
+            },
+            // on download progress
+            function (xhr) {
+                if( optionalJobName ) {
+                    instance.updateJobProgress( optionalJobName, xhr.loaded / xhr.total  );
+                }
+            },
+            // on error
+            function (xhr) {
+                if( optionalJobName ) {
+                    instance.markJobFailed(optionalJobName);
+                }
+                console.log( 'Error loading texture: ' + AlgoMission.SKY_TEXTURE );
             }
         );
     }

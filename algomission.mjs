@@ -7,7 +7,6 @@
 "use strict";
 
 import * as THREE from 'https://cdn.skypack.dev/pin/three@v0.135.0-pjGUcRG9Xt70OdXl97VF/mode=imports,min/optimized/three.js';
-import { GLTFLoader } from 'https://cdn.skypack.dev/three@0.135.0/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from 'https://cdn.skypack.dev/three@0.135.0/examples/jsm/controls/OrbitControls.js';
 
 import { Bot } from './modules/bot.mjs';
@@ -57,6 +56,13 @@ class AlgoMission {
     static CAMERA_Y_OFFSET = 60;
     static CAMERA_Z_OFFSET = -40;
 
+    // Job groups
+    // These cover multiple assets, and are used to generalise loading progress
+    static JOB_GROUP_BOT = "job";
+    static JOB_GROUP_MAP = "map";
+    static JOB_GROUP_SKY = "sky";
+    static JOB_GROUP_AUDIO = "audio";
+
     constructor() {
         this.m_State = AlgoMission.TAppState.INITIAL;
 
@@ -87,10 +93,6 @@ class AlgoMission {
 
         this.m_MouseControls = null;
 
-        this.m_TextureLoader = null;
-
-        this.m_GLTFLoader = null;
-
         // game loop support
         this.m_Clock = null;
         this.m_Lag = 0; 	// used in game loop for fixed step update
@@ -112,7 +114,7 @@ class AlgoMission {
         this.m_LoadingManager = null;
 
         // These are the jobs that we need to wait for (i.e. things the loading screen covers)
-        this.m_StartupLoadJobNames = [ "bot", "sky", "map", "audio" ];
+        this.m_StartupLoadJobNames = [ AlgoMission.JOB_GROUP_BOT, AlgoMission.JOB_GROUP_SKY, AlgoMission.JOB_GROUP_MAP, AlgoMission.JOB_GROUP_AUDIO ];
 
         this.m_ClickBlackoutHack = false;
 
@@ -257,7 +259,7 @@ class AlgoMission {
                 break;
 
             case AlgoMission.TAppState.RETRY:
-                this.resetPlayArea();
+                // NOOP - we move straight out of this state
                 break;
 
             case AlgoMission.TAppState.SELECTMAP:
@@ -388,6 +390,7 @@ class AlgoMission {
                 this.m_MapManager.resize(this.m_Bot.getStepSize(), 0.1);
 
                 this.createTitleScreen();
+                this.getTitleScreen().show();
 
                 break;
             case AlgoMission.TAppState.READY:
@@ -404,6 +407,7 @@ class AlgoMission {
                 this.getDeathScreen().show();
                 break;
             case AlgoMission.TAppState.RETRY:
+                this.resetPlayArea();
                 this.showPlayArea();
                 break;
             case AlgoMission.TAppState.SELECTMAP:
@@ -426,7 +430,7 @@ class AlgoMission {
                 this.setMeshVisibility( "sky", true);
                 break;
             case AlgoMission.TAppState.LOADED:
-                this.getTitleScreen().destroy( this.m_Camera );
+                this.getTitleScreen().hide( this.m_Camera );
                 this.toggleGridHelper();
                 this.m_ScoreManager.createScore( this.m_Camera );
                 break;
@@ -483,15 +487,15 @@ class AlgoMission {
 
         this.addMouseControls();
 
-        this.addMapManager(this.m_TextureLoader);
+        this.addMapManager();
 
         this.addInstructionManager(this);
 
-        this.addControlPanel(this.m_InstructionMgr, this.m_TextureLoader);
+        this.addControlPanel();
 
         this.addScoreManager();
 
-        this.addBot(this.botCreatedCb.bind(this));
+        this.addBot();
 
         this.setupCollisionDetection();
 
@@ -505,10 +509,7 @@ class AlgoMission {
     }
 
     createTitleScreen() {
-
-        this.m_TitleScreen = new TitleScreen( this.m_Camera );
-
-        this.m_TitleScreen.create( this.getBot() );
+        this.m_TitleScreen = new TitleScreen( this.m_Camera, this.getBot() );
     }
 
     getTitleScreen() {
@@ -567,10 +568,6 @@ class AlgoMission {
         this.m_Container = document.getElementById('AlgoMission');
         this.m_Container.appendChild(this.m_Element);
 
-        this.m_TextureLoader = new THREE.TextureLoader();
-
-        this.m_GLTFLoader = new GLTFLoader();
-
         this.m_Scene = new THREE.Scene();
 
         this.addCamera();
@@ -606,34 +603,18 @@ class AlgoMission {
     }
 
     addSky() {
-        const name = "sky";
+        this.getLoadingManager().loadTexture( AlgoMission.SKY_TEXTURE, this.skyLoadedCb.bind(this), AlgoMission.JOB_GROUP_SKY );
+    }
 
+    skyLoadedCb( texture ) {
+        const name = "sky";
         var skyGeo = new THREE.SphereGeometry(500, 60, 40);
         skyGeo.scale(- 1, 1, 1);
-
-        var self = this;
-        this.m_TextureLoader.load(AlgoMission.SKY_TEXTURE,
-
-            // on load
-            function (texture) {
-                var material = new THREE.MeshBasicMaterial({ map: texture });
-                var mesh = new THREE.Mesh(skyGeo, material);
-                mesh.name = name;
-                mesh.visible = false;       // don't show it straight away
-                self.m_Scene.add(mesh);
-
-                self.getLoadingManager().markJobComplete("sky");
-            },
-            // on download progress
-            function (xhr) {
-                self.getLoadingManager().updateJobProgress(name, xhr.loaded / xhr.total  );
-            },
-            // on error
-            function (xhr) {
-                self.getLoadingManager().markJobFailed(name);
-                console.log( 'Error loading texture: ' + AlgoMission.SKY_TEXTURE );
-            }
-        );
+        var material = new THREE.MeshBasicMaterial({ map: texture });
+        var mesh = new THREE.Mesh(skyGeo, material);
+        mesh.name = name;
+        mesh.visible = false;       // don't show it straight away
+        this.m_Scene.add(mesh);
     }
 
     setMeshVisibility( meshName, visibility ) {
@@ -651,41 +632,38 @@ class AlgoMission {
         this.m_AmbientButtonClickSound = new THREE.Audio(this.m_AudioListener);
         this.m_Scene.add(this.m_AmbientButtonClickSound);
 
-        this.getLoadingManager().loadAudio( 'audio/107132__bubaproducer__button-14.wav', this.audioLoadedCb.bind(this), "audio");
+        this.getLoadingManager().loadAudio( 'audio/107132__bubaproducer__button-14.wav', this.audioLoadedCb.bind(this), AlgoMission.JOB_GROUP_AUDIO);
     }
 
     audioLoadedCb( audioBuffer ) {
         this.m_AmbientButtonClickSound.setBuffer(audioBuffer);
     }
 
-    // calls botCb() when bot is ready
-    addBot(botCb) {
+    addBot() {
         this.m_Bot = new Bot( this );
-        this.m_Bot.load("models/ToonBus_VijayKumar/scene.gltf",
-            this.m_GLTFLoader,
-            this.m_AudioListener,
-            botCb);
+        this.m_Bot.load(this.getLoadingManager(), this.m_AudioListener, this.botCreatedCb.bind(this));
     }
 
     botCreatedCb() {
-        this.getLoadingManager().markJobComplete( "bot" );
+        // Note: this group job was added on startup
+        this.getLoadingManager().markJobComplete( AlgoMission.JOB_GROUP_BOT );
     }
-
 
     addLoadingManager() {
-        this.m_LoadingManager = new LoadingManager( this, this.m_GLTFLoader, this.m_StartupLoadJobNames );
+        this.m_LoadingManager = new LoadingManager( this, this.m_StartupLoadJobNames );
     }
 
-    addMapManager(textureLoader) {
+    addMapManager() {
         this.m_MapManager = new MapManager( this );
         var self = this;
 
         // we listen to the map manager for tile changes
         this.m_MapManager.registerObserver(this);
 
-        this.m_MapManager.load(textureLoader, this.m_GLTFLoader, 
+        this.m_MapManager.load(this.getLoadingManager(), 
                 function () { 
-                    self.getLoadingManager().markJobComplete("map");
+                    // Note: this group job was added on startup
+                    self.getLoadingManager().markJobComplete(AlgoMission.JOB_GROUP_MAP);
                 });
     }
 
@@ -695,15 +673,9 @@ class AlgoMission {
         this.m_InstructionMgr.updateWindow();
     }
 
-    addControlPanel(instructionMgr, textureLoader) {
+    addControlPanel() {
         this.m_ControlPanel = new ControlPanel(this.m_Camera);
-
-        let distanceFromCamera = 10;
-
-		const screenHeight = getScreenHeightAtCameraDistance( distanceFromCamera, this.m_Camera.fov );
-        const screenWidth = getScreenWidthAtCameraDistance( distanceFromCamera, screenHeight, this.m_Camera.aspect );
-
-        this.m_ControlPanel.createControlPanel(instructionMgr, textureLoader, screenWidth, screenHeight, distanceFromCamera );
+        this.m_ControlPanel.createControlPanel(this.getLoadingManager());
     }
 
     addScoreManager( ) {

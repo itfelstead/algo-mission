@@ -17,7 +17,6 @@ import { MapTile } from "./maptile.mjs";
 import { TileFlairBusStop } from "./tileflairbusstop.mjs";
 import { TileFlairLady } from "./tileflairlady.mjs";
 import { TileFlairBird } from "./tileflairbird.mjs";
-import { GLTFLoader } from 'https://cdn.skypack.dev/three@0.135.0/examples/jsm/loaders/GLTFLoader.js';
 
 /**
  * @namespace The algo-mission namespace
@@ -182,11 +181,9 @@ class MapManager
 	/**
 	*  load
 	*
-	* @param {THREE.TextureLoader} textureLoader - for loading textures
-	* @param {GLTFLoader} glTFLoader - for loading GLTF models
 	* @param {function} callbackFn - called when map manger is ready (i.e. textures loaded)
 	*/
-	load(textureLoader, glTFLoader, callbackFn )
+	load(loadingManager, callbackFn )
 	{
 		this.mapLoaded = false;
 		// note: we don't reset flair loaded, as flair applied to all maps
@@ -205,12 +202,12 @@ class MapManager
 		var waitForMapLoad = setInterval( function(){
 			if( instance.mapLoaded == true )
 			{
-				instance.loadTextures( textureLoader, 
+				instance.loadTextures( loadingManager, 
 					function() {
 						instance.texturesLoaded = true;
 					} );
 
-				instance.loadFlairModels( glTFLoader );
+				instance.loadFlairModels( loadingManager );
 
 				clearInterval( waitForMapLoad );
 			}
@@ -230,53 +227,37 @@ class MapManager
         this.waitForMapFullyLoaded( callbackFn, this );
 	}
 
-	loadFlairModels( glTFLoader )
+	loadFlairModels( loadingManager )
 	{
 		if( this.flairLoaded != 0 ) {
-			this.loadModel( "./models/BusStop_Raid/scene.gltf", glTFLoader, this.busStopLoadedCb.bind(this) );
-			this.loadModel( "./models/Mary_XaneMyers/scene.gltf", glTFLoader, this.ladyLoadedCb.bind(this) );
-			this.loadModel( "./models/Pigeon_FourthGreen/scene.gltf", glTFLoader, this.birdLoadedCb.bind(this) );
-			this.loadSound( "./audio/42793__digifishmusic__australian-magpie-gymnorhina-tibicen-squawk-1.wav", "BirdFlairSound_Angry", this.gameMgr.m_AudioListener );
-			this.loadSound( "./audio/323707__reitanna__ooh.wav", "LadyFlairSound_Angry", this.gameMgr.m_AudioListener );
+			loadingManager.loadModel( "./models/BusStop_Raid/scene.gltf", this.busStopLoadedCb.bind(this), "busstop" );
+			loadingManager.loadModel( "./models/Mary_XaneMyers/scene.gltf", this.ladyLoadedCb.bind(this), "lady" );
+			loadingManager.loadModel( "./models/Pigeon_FourthGreen/scene.gltf", this.birdLoadedCb.bind(this), "bird" );
+
+			loadingManager.loadAudio( "./audio/42793__digifishmusic__australian-magpie-gymnorhina-tibicen-squawk-1.wav", this.birdAngryCb.bind(this), "angrybird" );
+			loadingManager.loadAudio( "./audio/323707__reitanna__ooh.wav", this.ladyAngryCb.bind(this), "angryLady" );
 		}
 	}
 
-	loadSound( soundFile, name, listener ) {
+	birdAngryCb( audioBuffer ) {
+		this.addSound( "BirdFlairSound_Angry", audioBuffer );
+	}
 
-		let audio = new THREE.Audio(listener);
+	ladyAngryCb( audioBuffer ) {
+		this.addSound( "LadyFlairSound_Angry", audioBuffer );
+	}
+
+	addSound( name, audioBuffer ) {
+
+		let audio = new THREE.Audio( this.gameMgr.m_AudioListener );
 		audio.name = name;
 		this.flairAudio[name] = audio;
 
 		this.gameMgr.m_Scene.add( audio );
 
-		var loader = new THREE.AudioLoader();
-		var self = this;
-		loader.load( soundFile,
-			function (audioBuffer) {
-				//on load
-				self.flairAudio[name].setBuffer(audioBuffer);
-				self.flairAssetsToLoad--;
-			}
-		);
+		this.flairAudio[name].setBuffer(audioBuffer);
+		this.flairAssetsToLoad--;
 	}
-
-    loadModel(model, glTFLoader, isCreatedCallback) {
-        var instance = this;
-        glTFLoader.load( model, 
-            // Loaded    
-            function (gltf) {
-                isCreatedCallback(gltf);
-            },
-            // Progress
-            function (xhr ) {
-                console.log( model + " " + ( xhr.loaded / xhr.total * 100 ) + '% loaded' );
-            },
-            // Error
-            function( error ) {
-                console.log( 'Failed to load model ' + model );
-            }
-        );
-    }
 
 	busStopLoadedCb( gltfObj ) {
 
@@ -994,57 +975,39 @@ class MapManager
 	/**
 	*  loadTextures
 	*
-	* @param {THREE.TextureLoader} textureLoader - for loading textures
 	* @param {function} callbackFn - called when map manger is ready (i.e. textures loaded)
 	*/
-	loadTextures(textureLoader, callbackFn )
+	loadTextures(loadingManager, callbackFn )
 	{
 		for( var tileId in this.tileConfig )
 		{
 			var tileEntry = this.tileConfig[tileId];
 			if( tileEntry && tileEntry.hasOwnProperty("textureFile") )
 			{
-				// Load texture
-				textureLoader.load( "textures/" + tileEntry.textureFile,
-
-					// on load
-					(function() {	var tileEntry_ = tileEntry; return function( texture )	{
-						// console.log("loaded texture " + texture.id)
-						tileEntry_.loadedTexture = texture;
-					}	})(),
-
-					// on download progress
-					(function() {	var tileEntry_ = tileEntry; return function( xhr ) {
-						//console.log( "textures/" + tileEntry_.textureFile + " " + (xhr.loaded / xhr.total * 100) + '% loaded' );
-					}	})(),
-
-					// on error
-					(function() {	var tileEntry_ = tileEntry; return function( xhr ) {
-						//console.log( 'Error loading textures/' + tileEntry_.textureFile );
-					}	})()
-				);
+				loadingManager.loadTexture( 
+					"textures/" + tileEntry.textureFile, 
+					(function() {
+						var tileEntry_ = tileEntry;
+						return function( texture )	{
+							// console.log("loaded texture " + texture.id)
+							tileEntry_.loadedTexture = texture;
+						}
+					})(),
+					tileEntry.textureFile );
 
 				// Load Flipped Texture
 				// TBD clone() doesn't seem to be working.. so doing a duplicate load for now.
 				// var flippedTexture = texture.clone();
-				textureLoader.load( "textures/" + tileEntry.textureFile,
-					// on load
-					(function() {	var tileEntry_ = tileEntry; return function( texture )	{
-						//console.log("loaded flipped texture " + texture.id)
-						texture.flipY = false;
-						tileEntry_.loadedTextureFlipped = texture;
-					}	})(),
-
-					// on download progress
-					(function() {	var tileEntry_ = tileEntry; return function( xhr ) {
-						//console.log( "textures/" + tileEntry_.textureFile + " " + (xhr.loaded / xhr.total * 100) + '% loaded' );
-					}	})(),
-
-					// on error
-					(function() {	var tileEntry_ = tileEntry; return function( xhr ) {
-						//console.log( 'Error loading textures/' + tileEntry_.textureFile );
-					}	})()
-				);
+				loadingManager.loadTexture( 
+					"textures/" + tileEntry.textureFile, 
+					(function() {
+						var tileEntry_ = tileEntry;
+						return function( texture )	{
+							texture.flipY = false;
+							tileEntry_.loadedTextureFlipped = texture;
+						}
+					})(),
+					tileEntry.textureFile );
 			}
 		}
 

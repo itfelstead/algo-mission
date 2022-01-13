@@ -22,17 +22,19 @@ class TitleScreen {
     static NOENTRY = "\u26D4";
     static COLLISION = "\uD83D\uDCA5";
 
-    constructor( camera ) {
-        this.objectsToCleanUp = [];
+    constructor( camera, botMesh ) {
+        this.m_ObjectsToCleanUp = [];
         this.m_MoveJobs = [];
 
         this.m_Camera = camera;
         this.m_DistanceFromCamera = 10;
 
+        this.m_BotMesh = botMesh;
+
         this.m_Finished = false;
     }
 
-    create( botMesh ) {
+    show() {
 
         this.m_Finished = false;
 
@@ -52,7 +54,7 @@ class TitleScreen {
         // TITLE TEXT
         let name = "titleMsg";
         let titleMsgMesh = this.prepareMsgObject( "Algo-mission ", name, 1, 0xFFFFFF, screenWidth, 100 );
-        let titleBotMesh = this.prepareBot( titleMsgMesh, botMesh, name + "_bot" );
+        let titleBotMesh = this.prepareBot( titleMsgMesh, this.m_BotMesh, name + "_bot" );
 
         const titleSpeed = 0.3;
         let yPos = (screenHeight/2) - (titleMsgMesh.userData.height*titleMsgMesh.scale.y);
@@ -82,7 +84,7 @@ class TitleScreen {
         let tipIdx = Math.floor(Math.random() * tips.length);
         name = "tip";
         let tipMsgMesh = this.prepareMsgObject( "Tip: " + tips[tipIdx], name, 0.33, 0xFFFFFF, screenWidth, 40 );
-        let tipBotMesh = this.prepareBot( tipMsgMesh, botMesh, name + "_bot" );
+        let tipBotMesh = this.prepareBot( tipMsgMesh, this.m_BotMesh, name + "_bot" );
         this.animateMotivationMsg( tipDelayMs, name, tipBotMesh, tipMsgMesh, screenWidth, yPos, -this.m_DistanceFromCamera );
 
         // click to continue
@@ -92,7 +94,7 @@ class TitleScreen {
         let clickMsgMesh = this.prepareMsgObject( TitleScreen.SMILEY + "Click to continue" + TitleScreen.SMILEY, name, 0.5, 0xFFFFFF, screenWidth, 40 );
 
         yPos = -((screenHeight/2) - (clickMsgMesh.userData.height*clickMsgMesh.scale.y));
-        let clickBotMesh = this.prepareBot( clickMsgMesh, botMesh, name + "_bot" );
+        let clickBotMesh = this.prepareBot( clickMsgMesh, this.m_BotMesh, name + "_bot" );
         this.animateMotivationMsg( clickDelayMs, name, clickBotMesh, clickMsgMesh, screenWidth, yPos, -this.m_DistanceFromCamera );
 
     }
@@ -187,7 +189,7 @@ class TitleScreen {
         mesh.visible = false;
  
         this.m_Camera.add(mesh);
-        this.objectsToCleanUp.push(mesh.name);
+        this.m_ObjectsToCleanUp.push(mesh.name);
 
         return mesh;
     }
@@ -206,19 +208,19 @@ class TitleScreen {
         botMsgCopy.visible = false;
 
         this.m_Camera.add( botMsgCopy );
-        this.objectsToCleanUp.push(botMsgCopy.name);
+        this.m_ObjectsToCleanUp.push(botMsgCopy.name);
 
         return botMsgCopy;
     }
 
-    destroy() {
-        this.m_Finished = true;
-        for( let i=0; i < this.objectsToCleanUp.length; ++i ) {
-            let obj = this.m_Camera.getObjectByName( this.objectsToCleanUp[i] );
+    hide() {
+        for( let i=0; i < this.m_ObjectsToCleanUp.length; ++i ) {
+            let obj = this.m_Camera.getObjectByName( this.m_ObjectsToCleanUp[i] );
             if( obj ) {
                 this.m_Camera.remove( obj );
             }
         }
+        this.m_Finished = true;
     }
 }
 

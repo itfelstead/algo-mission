@@ -14,7 +14,7 @@ var ALGO = ALGO || {};
 import * as THREE from 'https://cdn.skypack.dev/pin/three@v0.135.0-pjGUcRG9Xt70OdXl97VF/mode=imports,min/optimized/three.js';
 
 import { InstructionManager } from './instructionmanager.mjs';
-import { limitViaScale } from './algoutils.js'; 	        // utility functions
+import { limitViaScale, getScreenHeightAtCameraDistance, getScreenWidthAtCameraDistance, calculateMeshDimensions } from './algoutils.js'; 	        // utility functions
 
 class ControlPanel {
 
@@ -23,10 +23,10 @@ class ControlPanel {
 	* @class The ControlPanel class.
 	*/
 	constructor( camera ) {
-		this.controlPanelObjects = {}; // an array of buttons (meshes)
-
-		this.controlPanelGroup = null;
-		this.panelCamera = camera;
+		this.m_ControlPanelGroup = null
+		this.m_DistanceFromCamera = 10;
+		this.m_NumButtonsToCreate = 0;
+		this.m_Camera = camera;
 	}
 
 	/**
@@ -43,13 +43,12 @@ class ControlPanel {
 	*
 	*
 	*/
-	createControlPanel(instructionMgr, textureLoader, screenWidth, screenHeight, distanceFromCamera ) {
-		if( this.controlPanelGroup != null ) {
+	createControlPanel( loadingManager ) {
+
+		if( this.m_ControlPanelGroup != null ) {
 			console.log("Warning: control panel already exists");
 			return;
 		}
-
-		this.controlPanelGroup = new THREE.Group();
 
 		// Layout is something like this (x grows left, y grows up)
 		//
@@ -58,12 +57,7 @@ class ControlPanel {
 		//    [fire]        [back]
 		//           [clear][grid][go]
 		//
-		var boxSize = 1; 	// for display size is irrelevant as FoV will alter to fill window
-		var gridSize = 4; 	// panel buttons are placed on a 4x4 grid
-		var defaultZ = 1;
-		var stepSize = boxSize * 1.25;
-		var gridOffset = (-(gridSize * stepSize) / 2) + (boxSize / 2);
-
+		const defaultZ = 1;
 		var panelConfig = [
 			{ "id": InstructionManager.instructionConfig.FORWARD, "x": 1, "y": 3, "z": defaultZ, "pic": "Up256.png" },
 			{ "id": InstructionManager.instructionConfig.BACK, "x": 1, "y": 1, "z": defaultZ, "pic": "Back256.png" },
@@ -76,54 +70,75 @@ class ControlPanel {
 			{ "id": InstructionManager.instructionConfig.PAUSE, "x": 1, "y": 2, "z": defaultZ, "pic": "Stop256.png" }
 		];
 
+		this.m_ControlPanelGroup = new THREE.Group();
+
+		this.m_NumButtonsToCreate = panelConfig.length;
+
+		this.createButtons( panelConfig, loadingManager );
+		this.positionPanelOnLoad( panelConfig, loadingManager );
+	}
+
+	createButtons( panelConfig, loadingManager ) {
 		for (var i = 0; i < panelConfig.length; i++) {
 			var buttonConfig = panelConfig[i];
 			var picture = buttonConfig.pic;
-			var texture = textureLoader.load("textures/" + picture);
 
-			var buttonGeo = new THREE.PlaneGeometry(boxSize,boxSize);
-			var buttonMaterial = new THREE.MeshBasicMaterial({ map: texture, transparent:true, opacity:1.0 });
-			var buttonMesh = new THREE.Mesh(buttonGeo, buttonMaterial);
-			buttonMesh.name = buttonConfig.id;
-			buttonMesh.position.set(-(gridOffset + (buttonConfig.x * stepSize)), gridOffset + (buttonConfig.y * stepSize), -distanceFromCamera);
-			
-			this.controlPanelGroup.add( buttonMesh );
+			loadingManager.loadTexture( "textures/" + picture, 
+										this.textureLoadedCb.bind(this, buttonConfig), 
+										picture ); 
 		}
+	}
 
-		const box = new THREE.Box3( ).setFromObject( this.controlPanelGroup );
-		const size = box.getSize( new THREE.Vector3( ) );
+	textureLoadedCb( buttonConfig, texture ) {
 
-		if( size.x*3 > screenWidth ) {
-			// Screen is small (less than 3 panels wide), so best to place it centrally at bottom of the screen
-			limitViaScale( this.controlPanelGroup, size.x, screenWidth/2 );
-			this.controlPanelGroup.position.set( 0, -( (screenHeight/2.5) - (size.y*this.controlPanelGroup.scale.y)/2) );
+		var boxSize = 1; 	// for display size is irrelevant as FoV will alter to fill window
+		var gridSize = 4; 	// panel buttons are placed on a 4x4 grid
+		var stepSize = boxSize * 1.25;
+		var gridOffset = (-(gridSize * stepSize) / 2) + (boxSize / 2);
+
+		var buttonGeo = new THREE.PlaneGeometry(boxSize,boxSize);
+		var buttonMaterial = new THREE.MeshBasicMaterial({ map: texture, transparent:true, opacity:1.0 });
+		var buttonMesh = new THREE.Mesh(buttonGeo, buttonMaterial);
+		buttonMesh.name = buttonConfig.id;
+		buttonMesh.position.set(-(gridOffset + (buttonConfig.x * stepSize)), gridOffset + (buttonConfig.y * stepSize), -this.m_DistanceFromCamera);
+		
+		this.m_ControlPanelGroup.add( buttonMesh );
+
+		--this.m_NumButtonsToCreate;
+	}
+
+	positionPanelOnLoad( panelConfig, loadingManager ) {
+		if( this.m_NumButtonsToCreate > 0 ) {
+			setTimeout(this.positionPanelOnLoad.bind(this, panelConfig, loadingManager), 33);
 		}
 		else {
-			// Screen is large enough to shove the controls on the left
-			this.controlPanelGroup.position.set( -( (screenWidth/2) - ((size.x*this.controlPanelGroup.scale.x)/2) ), 0 );
+			const size = calculateMeshDimensions(this.m_ControlPanelGroup );
+
+			const screenHeight = getScreenHeightAtCameraDistance( this.m_DistanceFromCamera, this.m_Camera.fov );
+			const screenWidth = getScreenWidthAtCameraDistance( this.m_DistanceFromCamera, screenHeight, this.m_Camera.aspect );
+
+			if( size.x*3 > screenWidth ) {
+				// Screen is small (less than 3 panels wide), so best to place it centrally at bottom of the screen
+				limitViaScale( this.m_ControlPanelGroup, size.x, screenWidth/2 );
+				this.m_ControlPanelGroup.position.set( 0, -( (screenHeight/2.5) - (size.y*this.m_ControlPanelGroup.scale.y)/2) );
+			}
+			else {
+				// Screen is large enough to shove the controls on the left
+				this.m_ControlPanelGroup.position.set( -( (screenWidth/2) - ((size.x*this.m_ControlPanelGroup.scale.x)/2) ), 0 );
+			}
 		}
 	}
 
 	hide() {
-        this.removeButtons( this.panelCamera  );
+		this.m_Camera.remove( this.m_ControlPanelGroup  );
     }
 
     show() {
-        this.addButtons( this.panelCamera  );
+		this.m_Camera.add( this.m_ControlPanelGroup );
     }
 
-	addButtons( camera ) {
-		// TODO - animation
-		camera.add( this.controlPanelGroup );		
-	}
-
-	removeButtons( camera ) {
-		// TODO - animation
-		camera.remove( this.controlPanelGroup  );
-	}
-
 	getActiveButtons() {
-		return this.controlPanelGroup.children;
+		return this.m_ControlPanelGroup.children;
 	}
 }
 

@@ -21,6 +21,9 @@ import { calculateMeshDimensions } from './algoutils.js'; 	        // utility fu
 var ALGO = ALGO || {};
 
 class Bot {
+
+  static BOT_MODEL_FILE = "models/ToonBus_VijayKumar/scene.gltf";
+
   OP_TIME_STEP = 2; 			                // time in secs to execute an instruction
   OP_DEATH_TIME_STEP = 4;
   OP_DELAY = 0.5; 			                  // delay between operations
@@ -133,82 +136,84 @@ class Bot {
   * Calls isCreatedCallback() once complete.
   *
   * @param {string} model - file name of GLTF model
-  * @param {(THREE Sample)GLTFLoader} glTFLoader - GLTF loader
   * @param {function} isCreatedCallback - callback to call when complete
   */
-  load(model, glTFLoader, audioListener, isCreatedCallback) {
-    this.loadModel(model, glTFLoader, isCreatedCallback);
+  load(loadingManager, audioListener, isCreatedCallback) {
 
-    this.loadAudio(audioListener);
+    loadingManager.loadModel( Bot.BOT_MODEL_FILE, this.botLoadedCb.bind(this), "bot model" );
+
+    this.loadAudio(loadingManager, audioListener);
 
     this.waitForLoad(isCreatedCallback, this);
   }
 
-  loadModel(model, glTFLoader, isCreatedCallback) {
- 
-    var instance = this; 	// so we can access bot inside anon-function
-    glTFLoader.load(model, function (obj) {
+  botLoadedCb( obj ) {
 
-      var object3d  = obj.scene.getObjectByName( "OSG_Scene" );
-      // Scale is OK as loaded, but to change; object3d.scale.set(100, 100, 100);
+    var object3d  = obj.scene.getObjectByName( "OSG_Scene" );
 
-      instance.mesh = object3d;
+    // Scale is OK as loaded, but to change; object3d.scale.set(100, 100, 100);
+
+    this.mesh = object3d;
 /*
-      instance.botGroup = new THREE.Group();
-      instance.botGroup.add( instance.mesh );
+    this.botGroup = new THREE.Group();
+    this.botGroup.add( instance.mesh );
 */
-      const box = calculateMeshDimensions(instance.mesh);
-      instance.mesh.userData.width = box.x;
-      instance.mesh.userData.height = box.y;
-      instance.mesh.userData.depth = box.z;
+    const box = calculateMeshDimensions(this.mesh);
+    this.mesh.userData.width = box.x;
+    this.mesh.userData.height = box.y;
+    this.mesh.userData.depth = box.z;
 
-      instance.calculateStepSize();
-    });
+    this.calculateStepSize();
   }
 
   getBot() {
     return this.mesh;     // return this.botGroup;
   }
 
-  loadAudio(audioListener) {
-    var loader = new THREE.AudioLoader();
+  loadAudio(loadingManager, audioListener) {
 
     var instance = this; 	// so we can access bot inside anon-function
 
-    loader.load('audio/43801__daveincamas__modelahorn.wav',
+    loadingManager.loadAudio('audio/43801__daveincamas__modelahorn.wav',
       function (audioBuffer) {
         //on load
         instance.audioBusHorn = new THREE.Audio(audioListener);
         instance.audioBusHorn.setBuffer(audioBuffer);
-      }
+      },
+      "horn"
     );
-    loader.load('audio/86044__nextmaking__bus.wav',
+
+    loadingManager.loadAudio('audio/86044__nextmaking__bus.wav',
       function (audioBuffer) {
         //on load
         instance.audioBusMove = new THREE.Audio(audioListener);
         instance.audioBusMove.setBuffer(audioBuffer);
-      }
+      },
+      "bus"
     );
-    loader.load('audio/86044__nextmaking__bus_reversed.wav',
+    loadingManager.loadAudio('audio/86044__nextmaking__bus_reversed.wav',
       function (audioBuffer) {
         //on load
         instance.audioBusTurn = new THREE.Audio(audioListener);
         instance.audioBusTurn.setBuffer(audioBuffer);
-      }
+      },
+      "reverse"
     );
-    loader.load('audio/360662__inspectorj__falling-comedic-a.wav',
+    loadingManager.loadAudio('audio/360662__inspectorj__falling-comedic-a.wav',
       function (audioBuffer) {
         //on load
         instance.audioBusFall = new THREE.Audio(audioListener);
         instance.audioBusFall.setBuffer(audioBuffer);
-      }
+      },
+      "falling"
     );
-    loader.load('audio/333083__soundslikewillem__releasing-pressure.wav',
+    loadingManager.loadAudio('audio/333083__soundslikewillem__releasing-pressure.wav',
       function (audioBuffer) {
         //on load
         instance.audioBusWait = new THREE.Audio(audioListener);
         instance.audioBusWait.setBuffer(audioBuffer);
-      }
+      },
+      "airbrake"
     );
   }
 
@@ -276,8 +281,6 @@ class Bot {
         break;
     }
   }
-
-
 
   /**
   * updateState()
@@ -368,7 +371,6 @@ class Bot {
     this.resetBot();
     this.respawn = true;
   }
-
 
   /**
   * onEnterState()
