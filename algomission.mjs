@@ -9,6 +9,10 @@
 import * as THREE from 'https://cdn.skypack.dev/pin/three@v0.135.0-pjGUcRG9Xt70OdXl97VF/mode=imports,min/optimized/three.js';
 import { OrbitControls } from 'https://cdn.skypack.dev/three@0.135.0/examples/jsm/controls/OrbitControls.js';
 
+// VR support:
+import { VRButton } from 'https://cdn.skypack.dev/three@0.135.0/examples/jsm/webxr/VRButton.js';
+import { XRControllerModelFactory } from 'https://cdn.skypack.dev/three@0.135.0/examples/jsm/webxr/XRControllerModelFactory.js';
+
 import { Bot } from './modules/bot.mjs';
 import { MapManager } from './modules/mapmanager.mjs';
 import { InstructionManager } from './modules/instructionmanager.mjs';
@@ -55,6 +59,8 @@ class AlgoMission {
 
     static CAMERA_Y_OFFSET = 60;
     static CAMERA_Z_OFFSET = -40;
+
+    static LASER_POINTER_NAME = "laserPointer";
 
     // Job groups
     // These cover multiple assets, and are used to generalise loading progress
@@ -211,8 +217,8 @@ class AlgoMission {
 
         this.setupGameLoop();
 
-        this.gameLoop(); 	// intial kickoff, subsequest calls via requestAnimationFrame()
-    }
+        this,this.m_Renderer.setAnimationLoop( this.gameLoop.bind(this) );
+   }
 
     actOnState( timeElapsed ) {
         switch (this.m_State) {
@@ -277,6 +283,33 @@ class AlgoMission {
             this.m_Bot.update(AlgoMission.UPDATE_TIME_STEP)
 
             this.m_MapManager.update(AlgoMission.UPDATE_TIME_STEP);
+        }
+
+        this.updateLaserPointer();
+    }
+
+    // VR Specific
+    updateLaserPointer() {
+
+        let laserPointer = this.m_Scene.getObjectByName(AlgoMission.LASER_POINTER_NAME);
+        if( laserPointer ) {
+            const controller1 = this.m_Renderer.xr.getController(0);
+            if( controller1 ) {
+
+                const [startPoint, endPoint] = this.calculateLaserPoints( controller1 );
+ 
+                const position = laserPointer.geometry.attributes.position.array;
+                position[0] = startPoint.x;
+                position[1] = startPoint.y;
+                position[2] = startPoint.z;
+                position[3] = -endPoint.x;
+                position[4] = -endPoint.y;
+                position[5] = -endPoint.z;
+        
+                // Note: need to set needsUpdate AND computeBoundingBox in order for screen to update
+                laserPointer.geometry.attributes.position.needsUpdate=true; 
+                laserPointer.geometry.computeBoundingBox(); 
+            }
         }
     }
 
@@ -571,6 +604,66 @@ class AlgoMission {
         this.m_Scene = new THREE.Scene();
 
         this.addCamera();
+
+        // VR Support button
+        document.body.appendChild( VRButton.createButton( this.m_Renderer ) );
+        this.m_Renderer.xr.enabled = true;
+
+        // VR Controller
+        const controllerGrip1 = this.m_Renderer.xr.getControllerGrip(0);
+        if( controllerGrip1 ) {
+            let controllerModelFactory = new XRControllerModelFactory();
+            const model1 = controllerModelFactory.createControllerModel( controllerGrip1 );
+            controllerGrip1.add( model1 );
+            this.m_Scene.add( controllerGrip1 );
+        }
+
+        const controller1 = this.m_Renderer.xr.getController(0);
+        if( controller1 ) {
+            controller1.addEventListener('selectstart', this.onSelectStart.bind(this) );
+            controller1.addEventListener('selectend', this.onSelectEnd.bind(this) ); 
+            controller1.userData.id = 0;
+
+            this.addLaserPointer(controller1);
+        }
+    }
+
+    addLaserPointer(controller) {
+        // VR Laser pointer
+        const material = new THREE.LineBasicMaterial( { color: 0x0000ff, linewidth: 2 } );
+
+        const points = this.calculateLaserPoints(controller);
+
+        const geometry = new THREE.BufferGeometry().setFromPoints( points );
+        let laserPointer = new THREE.Line( geometry, material );
+        laserPointer.geometry.setDrawRange(0,2);
+        laserPointer.name = AlgoMission.LASER_POINTER_NAME;
+        this.m_Scene.add( laserPointer );
+    }
+
+    calculateLaserPoints(controller) {
+        const distance = 100;
+
+        let direction = new THREE.Vector3();
+        controller.getWorldDirection( direction );
+
+        const controllerPos = new THREE.Vector3();
+        controller.getWorldPosition(controllerPos);
+
+        let startPoint = new THREE.Vector3( controllerPos.x, controllerPos.y, controllerPos.z ); //controller1.position.x,controller1.position.y,controller1.position.z );
+        let endPoint = new THREE.Vector3();
+        direction.multiplyScalar(distance);
+        endPoint.addVectors( startPoint, direction );
+
+        return [startPoint, endPoint ];
+    }
+
+    onSelectStart( event ) {
+        this.handleClickByState( event );
+    }
+
+    onSelectEnd( event ) {
+       // TBD - maybe don't need
     }
 
     addCamera() {
@@ -692,6 +785,8 @@ class AlgoMission {
 
         document.addEventListener('mousedown', this.onDocumentMouseDown.bind(this), false);
         document.addEventListener('touchstart', this.onDocumentTouchStart.bind(this), false);
+
+        // note: VR events are setup in setupBasicScene
     }
 
     //
@@ -702,6 +797,8 @@ class AlgoMission {
     // Standard game loop with a fixed update rate to keep
     // things consistent, and a variable render rate to allow
     // for differences in machine performance
+    //
+    // Note: repeatedly triggered by the call to setAnimationLoop()
     //
     gameLoop() {
         var elapsedTime = this.m_Clock.getDelta();
@@ -718,8 +815,6 @@ class AlgoMission {
         }
 
         this.render();
-
-        requestAnimationFrame(this.gameLoop.bind(this));
     }
 
     update() {
@@ -744,14 +839,12 @@ class AlgoMission {
 
     // For touch screens we have to mess about a bit to avoid accidental double clicks
     onDocumentTouchStart(event) {
-        event.preventDefault();
         event.clientX = event.touches[0].clientX;
         event.clientY = event.touches[0].clientY;
         this.onDocumentMouseDown(event);
     }
    
     onDocumentMouseDown(event) {
-        event.preventDefault();
 
         if( this.m_ClickBlackoutHack == false ) {
             this.m_ClickBlackoutHack = true;
@@ -766,7 +859,7 @@ class AlgoMission {
     handleClickByState( event ) {
 
         switch( this.m_State ) {
-            case AlgoMission.TAppState.INITIAL:
+            case AlgoMission.TAppState.INITIAL: 
                 // NOOP
                 break;
             case AlgoMission.TAppState.LOADED:
@@ -777,7 +870,7 @@ class AlgoMission {
             case AlgoMission.TAppState.READY:
                 var instructionsUpdated = 0;
                 var instructionClicked =
-                    this.detectInstructionPress(event.clientX, event.clientY, this.m_Raycaster);
+                    this.detectInstructionPress(event);
     
                 if (instructionClicked >= 0) {
                     this.m_AmbientButtonClickSound.play();
@@ -815,7 +908,7 @@ class AlgoMission {
                 this.getWinScreen().hide();
                 break;
             case AlgoMission.TAppState.DEAD:
-                let buttonSelected = this.detectButtonPress( event.clientX, event.clientY, this.m_Raycaster, this.getDeathScreen().getActiveObjects() );
+                let buttonSelected = this.detectButtonPress( event, this.getDeathScreen().getActiveObjects() );
                 if( buttonSelected == "retryButton" ) {
                     this.m_Retry = true;
                 }
@@ -827,7 +920,7 @@ class AlgoMission {
                 // NOOP
                 break;
             case AlgoMission.TAppState.SELECTMAP:
-                let mapSelected = this.detectButtonPress( event.clientX, event.clientY, this.m_Raycaster, this.getMapScreen().getMapSelectionObjects() );
+                let mapSelected = this.detectButtonPress( event, this.getMapScreen().getMapSelectionObjects() );
                 let mapId = this.getMapScreen().handleClick(mapSelected);
                 if( mapId != -1 ) {
                     // a new map was selected
@@ -837,31 +930,50 @@ class AlgoMission {
         }
     }
 
-	detectInstructionPress(xPos, yPos, raycaster) {
-        return this.detectButtonPress( xPos, yPos, raycaster, this.getControlPanel().getActiveButtons() );
+	detectInstructionPress(event) {
+        return this.detectButtonPress( event, this.getControlPanel().getActiveButtons() );
     }
 
-    detectButtonPress( xPos, yPos, raycaster, buttonsToCheck ) {
+    detectButtonPress( event, buttonsToCheck ) {
         let selection = -1;
 
-        if (typeof (raycaster) == "undefined") {
+        if (typeof (this.m_Raycaster) == "undefined") {
 			return selection;
 		}
 
-        var mouse = new THREE.Vector2(); // TODO: create once
-    
-        mouse.x = ( xPos / this.m_Renderer.domElement.clientWidth ) * 2 - 1;
-        mouse.y = - ( yPos / this.m_Renderer.domElement.clientHeight ) * 2 + 1;
-        
-        raycaster.setFromCamera( mouse, this.m_Camera );
+        if( typeof event.clientX != 'undefined' ) {
+            console.log("was mouse click");
+            var mouse = new THREE.Vector2(); // TODO: create once
+            mouse.x = ( event.clientX / this.m_Renderer.domElement.clientWidth ) * 2 - 1;
+            mouse.y = - ( event.clientY / this.m_Renderer.domElement.clientHeight ) * 2 + 1;
+            
+            this.m_Raycaster.setFromCamera( mouse, this.m_Camera );
+        }
+        else if( event.hasOwnProperty('target') ) {
+            console.log("was VR click");
+            const controller = event.target;
 
-        var intersects = raycaster.intersectObjects( buttonsToCheck );
+            let tempMatrix = new THREE.Matrix4();
+            tempMatrix.identity().extractRotation(controller.matrixWorld);
+            this.m_Raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+            this.m_Raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
+        }
+
+        let intersects = this.m_Raycaster.intersectObjects(buttonsToCheck);
 
         if( intersects.length > 0 ) {
             selection = intersects[0].object.name;
         }
 
 		return selection;
+    }
+
+    getIntersections(controller, buttonsToCheck) {
+        let tempMatrix = new THREE.Matrix4();
+        tempMatrix.identity().extractRotation(controller.matrixWorld);
+        this.m_Raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+        this.m_Raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
+        return this.m_Raycaster.intersectObjects(buttonsToCheck);
     }
 
     toggleGridHelper() {
