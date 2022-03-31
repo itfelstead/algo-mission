@@ -14,13 +14,11 @@ Screenshot:
 
 Access it running on itch.io [here](https://itfelstead.itch.io/algo-mission) or on github.io [here](https://itfelstead.github.io/).
 
-Alternatively, to run locally you can use node.js's http-server (otherwise see https://threejs.org/docs/#manual/introduction/How-to-run-thing-locally )
-e.g. navigate to your algo-mission dir and run;
-- install node.js and npm (https://nodejs.org/en/):
-- install http-server: npm install http-server -g
-- install three.js: npm install --save three
-- Run: `http-server`  (note: you must be in your project folder)
-- point your browser at http://127.0.0.1:8080/algo-mission.html
+Alternatively, to build and run locally you can use npm as follows;
+- install node.js and npm (https://nodejs.org/en/)
+- Install the required packages (listed in packages.json): `cd algo-mission; npm install`
+- Build via; `npx parcel&` followed by `npm run postbuild`
+- point your browser at http://localhost:1234/ (or whatever URL parcel gives you)
 
 Ian Felstead
 
