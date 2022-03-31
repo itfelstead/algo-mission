@@ -8,15 +8,17 @@
 
 "use strict";
 
-import * as THREE from 'https://cdn.skypack.dev/pin/three@v0.135.0-pjGUcRG9Xt70OdXl97VF/mode=imports,min/optimized/three.js';
+import * as THREE from 'three';
 
 // Cloning of skinned meshes (bird in our case) is not yet supported in the three.js core, so use SkeletonUtils
-import * as SkeletonUtils from 'https://threejs.org/examples/jsm/utils/SkeletonUtils.js';
+import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 
 import { MapTile } from "./maptile.mjs";
 import { TileFlairBusStop } from "./tileflairbusstop.mjs";
 import { TileFlairLady } from "./tileflairlady.mjs";
 import { TileFlairBird } from "./tileflairbird.mjs";
+
+//import mapSetUrl from "url:../maps_set1.json";
 
 /**
  * @namespace The algo-mission namespace
@@ -189,15 +191,16 @@ class MapManager
 		// note: we don't reset flair loaded, as flair applied to all maps
 		var instance = this; 	// so we can access map inside anon-function
 
-		this.loadJSON("maps_set1.json",
+		this.loadJSON("maps_set1.json", //mapSetUrl,  //"maps_set1.json",
 				function(data) {
 					instance.jsonMaps = data.mapDefinition;
 					instance.tileConfig = data.tileConfig;
 					instance.mapLoaded = true;
+					
 				},
 				function(xhr) { console.error(xhr); }
 		);
-
+		
 		// wait until maps are loaded, then load textures and flair...
 		var waitForMapLoad = setInterval( function(){
 			if( instance.mapLoaded == true )

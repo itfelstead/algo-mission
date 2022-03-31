@@ -9,8 +9,8 @@
 // Global Namespace
 var ALGO = ALGO || {};
 
-import * as THREE from 'https://cdn.skypack.dev/pin/three@v0.135.0-pjGUcRG9Xt70OdXl97VF/mode=imports,min/optimized/three.js';
-import { GLTFLoader } from 'https://cdn.skypack.dev/three@0.135.0/examples/jsm/loaders/GLTFLoader.js';
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 import { messageToMesh, limitViaScale, determineScale, getScreenHeightAtCameraDistance, getScreenWidthAtCameraDistance } from './algoutils.js'; 	        // utility functions
 
@@ -113,14 +113,22 @@ class LoadingManager {
             return;
         }
 
-        let jobMesh = this.m_JobMonitor[job];
-
-        jobMesh.material.map.needsUpdate = true;
-
-        jobMesh.ctx.fillStyle = "#DD0000"; 
-        jobMesh.ctx.fillRect( 0, 0, jobMesh.wPxAll, jobMesh.hPxAll );
-        jobMeshctx.fillStyle = "#ffffff"; 
-        jobMesh.ctx.fillText(job,jobMesh.wPxAll/2, jobMesh.hPxAll/2);
+        let jobMesh = this.m_GameMgr.getCamera().getObjectByName(job);
+        if( jobMesh ) {
+            jobMesh.material.map.needsUpdate = true;
+            if( jobMesh.ctx ) {
+                jobMesh.ctx.fillStyle = "#DD0000"; 
+                jobMesh.ctx.fillRect( 0, 0, jobMesh.wPxAll, jobMesh.hPxAll );
+                jobMesh.ctx.fillStyle = "#ffffff"; 
+                jobMesh.ctx.fillText(job,jobMesh.wPxAll/2, jobMesh.hPxAll/2);
+            }
+            else {
+                console.log("Job " + job + "  doesn't have ctx...");
+            }
+        }
+        else {
+            console.log("Job " + job + " failed");
+        }
     }
 
     updateJobProgress( job, progress ) {
@@ -129,7 +137,7 @@ class LoadingManager {
             return;
         }
         
-        let jobMesh = this.m_GameMgr.getCamera().getObjectByName("job");
+        let jobMesh = this.m_GameMgr.getCamera().getObjectByName(job);
 
         if( jobMesh ) {
             let targetScale = 1;
