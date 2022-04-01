@@ -448,6 +448,7 @@ class AlgoMission {
                 //this.m_MapSelectIndex = Math.max(0, this.m_SelectedMap);     // start selection at current map
                 let oldMap = this.m_SelectedMap;
                 this.m_SelectedMap = -1;
+                this.getMapScreen().UpdateMapScreenSpawnPosition(); // i.e. in front of VR headset (if in use)
                 this.getMapScreen().show( oldMap );
                 break;
         }
@@ -486,11 +487,17 @@ class AlgoMission {
     }
 
     updateCamera() {
-        this.m_Camera.updateProjectionMatrix();
-        this.m_Camera.position.set(this.m_Bot.getBot().position.x, 
-                                    this.m_Bot.getBot().position.y + AlgoMission.CAMERA_Y_OFFSET, 
-                                    this.m_Bot.getBot().position.z + AlgoMission.CAMERA_Z_OFFSET);
-        this.m_Camera.lookAt(this.m_Bot.getBot().position);
+
+        // TODO: in non-VR we moved the camera behind the bot, but now we need to move everything in fromt of the camera!
+
+        if( this.m_Renderer.xr.isPresenting == false ) {
+            console.log("updaing camera...");
+            this.m_Camera.updateProjectionMatrix();
+            this.m_Camera.position.set(this.m_Bot.getBot().position.x, 
+                                        this.m_Bot.getBot().position.y + AlgoMission.CAMERA_Y_OFFSET, 
+                                        this.m_Bot.getBot().position.z + AlgoMission.CAMERA_Z_OFFSET);
+            this.m_Camera.lookAt(this.m_Bot.getBot().position);
+        }
     }
 
     resetPlayArea() {
@@ -550,7 +557,7 @@ class AlgoMission {
     }
 
     createMapScreen() {
-        this.m_MapScreen = new MapScreen( this.m_Camera, this.getLoadingManager(), this.getMapManager() );
+        this.m_MapScreen = new MapScreen( this.m_Scene, this.m_Camera, this.getLoadingManager(), this.getMapManager() );
     }
 
     getMapScreen() {

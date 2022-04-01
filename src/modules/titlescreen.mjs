@@ -56,10 +56,6 @@ class TitleScreen {
         this.m_Scene.add(titleGroup);
         this.m_ObjectsToCleanUp.push(titleGroup.name);
 
-        this.m_Camera.position.setFromMatrixPosition(this.m_Camera.matrixWorld);
-        let cameraPosition = new THREE.Vector3(0, 0, 0);
-        cameraPosition.applyMatrix4(this.m_Camera.matrixWorld);
-
         const posInfrontOfCamera = new THREE.Vector3(0, 0, -this.m_DistanceFromCamera);
         posInfrontOfCamera.applyMatrix4(this.m_Camera.matrixWorld);  
         titleGroup.position.set(posInfrontOfCamera.x, posInfrontOfCamera.y, posInfrontOfCamera.z);
