@@ -10,8 +10,8 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
 // VR support:
-import { VRButton } from 'https://cdn.skypack.dev/three@0.135.0/examples/jsm/webxr/VRButton.js';
-import { XRControllerModelFactory } from 'https://cdn.skypack.dev/three@0.135.0/examples/jsm/webxr/XRControllerModelFactory.js';
+import { VRButton } from 'three/examples/jsm/webxr/VRButton.js';
+import { XRControllerModelFactory } from 'three/examples/jsm/webxr/XRControllerModelFactory.js';
 
 import { Bot } from './modules/bot.mjs';
 import { MapManager } from './modules/mapmanager.mjs';
@@ -463,7 +463,7 @@ class AlgoMission {
                 this.setMeshVisibility( "sky", true);
                 break;
             case AlgoMission.TAppState.LOADED:
-                this.getTitleScreen().hide( this.m_Camera );
+                this.getTitleScreen().hide();
                 this.toggleGridHelper();
                 this.m_ScoreManager.createScore( this.m_Camera );
                 break;
@@ -542,7 +542,7 @@ class AlgoMission {
     }
 
     createTitleScreen() {
-        this.m_TitleScreen = new TitleScreen( this.m_Camera, this.getBot() );
+        this.m_TitleScreen = new TitleScreen( this.m_Camera, this.m_Scene, this.getBot() );
     }
 
     getTitleScreen() {
@@ -593,6 +593,7 @@ class AlgoMission {
         this.m_Clock = new THREE.Clock();
 
         this.m_Lag = 0;
+        
     }
 
     setupBasicScene() {
@@ -609,22 +610,46 @@ class AlgoMission {
         document.body.appendChild( VRButton.createButton( this.m_Renderer ) );
         this.m_Renderer.xr.enabled = true;
 
+        this.m_Renderer.xr.addEventListener( 'sessionstart', this.onVrStart.bind(this) );
+        this.m_Renderer.xr.addEventListener( 'sessionend', this.onVrEnd.bind(this) );
+
         // VR Controller
-        const controllerGrip1 = this.m_Renderer.xr.getControllerGrip(0);
-        if( controllerGrip1 ) {
-            let controllerModelFactory = new XRControllerModelFactory();
-            const model1 = controllerModelFactory.createControllerModel( controllerGrip1 );
-            controllerGrip1.add( model1 );
-            this.m_Scene.add( controllerGrip1 );
+        if( this.m_Renderer.xr.isPresenting ) {
+            this.updateVrController( true );
         }
+    }
 
-        const controller1 = this.m_Renderer.xr.getController(0);
-        if( controller1 ) {
-            controller1.addEventListener('selectstart', this.onSelectStart.bind(this) );
-            controller1.addEventListener('selectend', this.onSelectEnd.bind(this) ); 
-            controller1.userData.id = 0;
+    onVrStart( event ) {
+        console.log("onVrStart called ");
+        this.updateVrController( true );
+    }
 
-            this.addLaserPointer(controller1);
+    onVrEnd( event ) {
+        console.log("onVrEnd called ");
+        this.updateVrController( false );
+    }
+
+    updateVrController(addController) {
+        if( addController == false ) {
+            this.removeLaserPointer();
+        }
+        else {
+            const controllerGrip1 = this.m_Renderer.xr.getControllerGrip(0);
+            if( controllerGrip1 ) {
+                let controllerModelFactory = new XRControllerModelFactory();
+                const model1 = controllerModelFactory.createControllerModel( controllerGrip1 );
+                controllerGrip1.add( model1 );
+                this.m_Scene.add( controllerGrip1 );
+            }
+
+            const controller1 = this.m_Renderer.xr.getController(0);
+            if( controller1 ) {
+                controller1.addEventListener('selectstart', this.onSelectStart.bind(this) );
+                controller1.addEventListener('selectend', this.onSelectEnd.bind(this) ); 
+                controller1.userData.id = 0;
+
+                this.addLaserPointer(controller1);
+            }
         }
     }
 
@@ -639,6 +664,10 @@ class AlgoMission {
         laserPointer.geometry.setDrawRange(0,2);
         laserPointer.name = AlgoMission.LASER_POINTER_NAME;
         this.m_Scene.add( laserPointer );
+    }
+
+    removeLaserPointer() {
+        this.m_Scene.remove( AlgoMission.LASER_POINTER_NAME );
     }
 
     calculateLaserPoints(controller) {
