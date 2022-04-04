@@ -25,6 +25,7 @@ import { TitleScreen } from './modules/titlescreen.mjs';
 import { MapScreen } from './modules/mapscreen.mjs';
 import { WinScreen } from './modules/winscreen.mjs';
 import { DeathScreen } from './modules/deathscreen.mjs';
+import { Group } from 'three';
 
 // Global Namespace
 var ALGO = ALGO || {};
@@ -111,7 +112,9 @@ class AlgoMission {
         this.m_AudioListener = null;
         this.m_AmbientButtonClickSound = null;
         
-        
+        // to ease placement of play area objects
+        this.m_PlayAreaGroup = null;
+        this.m_PlayAreaSpawnPoint = null;
 
         this.m_Observers = [];
 
@@ -414,7 +417,7 @@ class AlgoMission {
                 break;
             case AlgoMission.TAppState.SETUP: 
                 this.addLoadingManager();
-                this.getLoadingManager().displayLoadingScreen( this.m_Camera );
+                this.getLoadingManager().displayLoadingScreen( this.m_Camera, this.m_Renderer );
                 this.initialise();
                 break;
             case AlgoMission.TAppState.LOADED:
@@ -466,7 +469,7 @@ class AlgoMission {
             case AlgoMission.TAppState.LOADED:
                 this.getTitleScreen().hide();
                 this.toggleGridHelper();
-                this.m_ScoreManager.createScore( this.m_Camera );
+                this.m_ScoreManager.createScore( this.m_Camera, this.m_Renderer );
                 break;
             case AlgoMission.TAppState.READY:
                 break;
@@ -488,29 +491,54 @@ class AlgoMission {
 
     updateCamera() {
 
-        // TODO: in non-VR we moved the camera behind the bot, but now we need to move everything in fromt of the camera!
 
+        // Non-VR = move behind and point at bot, otherwise let user stare at what they want
         if( this.m_Renderer.xr.isPresenting == false ) {
-            console.log("updaing camera...");
             this.m_Camera.updateProjectionMatrix();
             this.m_Camera.position.set(this.m_Bot.getBot().position.x, 
                                         this.m_Bot.getBot().position.y + AlgoMission.CAMERA_Y_OFFSET, 
                                         this.m_Bot.getBot().position.z + AlgoMission.CAMERA_Z_OFFSET);
+
             this.m_Camera.lookAt(this.m_Bot.getBot().position);
         }
     }
 
     resetPlayArea() {
+
+        this.updatePlayAreaSpawnPosition();
+
         this.m_InstructionMgr.clearInstructions();
         this.m_InstructionMgr.updateWindow();
 
-        this.m_MapManager.loadMap(this.m_SelectedMap, this.m_Scene);
+        this.m_MapManager.loadMap(this.m_SelectedMap, this.m_PlayAreaGroup);
 
         this.m_Bot.respawnBot();
 
         this.m_ScoreManager.resetScore();
 
-        this.updateCamera();
+        this.updateCamera(); 
+    }
+
+    updatePlayAreaSpawnPosition() {
+        // TODO: in non-VR we moved the camera behind the bot, but now we need to move everything in fromt of the camera!
+
+        if( this.m_Renderer.xr.isPresenting ) {
+            // in VR we spawn the play area in front of the headset
+            this.m_PlayAreaSpawnPoint = new THREE.Vector3(0, -AlgoMission.CAMERA_Y_OFFSET, AlgoMission.CAMERA_Z_OFFSET);
+            this.m_PlayAreaSpawnPoint.applyMatrix4(this.m_Camera.matrixWorld);
+    
+            this.m_PlayAreaGroup.position.set(this.m_PlayAreaSpawnPoint.x, this.m_PlayAreaSpawnPoint.y, this.m_PlayAreaSpawnPoint.z);
+    
+            // need to rotate the play area according to the direction that the headset faces?
+            // TODO
+        }
+        else {
+            // in non-VR, always reset the camera, so the play area is in the middle of the scene.
+            this.m_PlayAreaGroup.position.set( 0, 0, 0 );
+        }
+
+       // this.m_PlayAreaGroup.lookAt( this.m_Camera.position );  // TBD - ????? do we want to do this?
+
     }
 
     //
@@ -518,6 +546,10 @@ class AlgoMission {
     //
 
     initialise() {
+
+        this.m_PlayAreaGroup = new THREE.Group();
+        this.m_PlayAreaGroup.name = "PlayAreaGroup";
+        this.m_Scene.add(this.m_PlayAreaGroup);
 
         this.addAudio(this.m_Camera);
 
@@ -557,7 +589,7 @@ class AlgoMission {
     }
 
     createMapScreen() {
-        this.m_MapScreen = new MapScreen( this.m_Scene, this.m_Camera, this.getLoadingManager(), this.getMapManager() );
+        this.m_MapScreen = new MapScreen( this.m_Scene, this.m_Camera, this.m_Renderer, this.getLoadingManager(), this.getMapManager() );
     }
 
     getMapScreen() {
@@ -565,7 +597,7 @@ class AlgoMission {
     }
     
     createWinScreen() {
-        this.m_WinScreen = new WinScreen( this.m_Camera, this.m_AudioListener,  this.getLoadingManager() );
+        this.m_WinScreen = new WinScreen( this.m_Renderer, this.m_Camera, this.m_AudioListener,  this.getLoadingManager() );
     }
 
     getWinScreen() {
@@ -573,7 +605,7 @@ class AlgoMission {
     }
 
     createDeathScreen() {
-        this.m_DeathScreen = new DeathScreen( this.m_Camera );
+        this.m_DeathScreen = new DeathScreen( this.m_Camera, this.m_Renderer );
     }
 
     getDeathScreen() {
@@ -582,18 +614,22 @@ class AlgoMission {
 
 
     hidePlayArea() {
+
+
         this.getControlPanel().hide();
-        this.m_Scene.remove(this.m_Bot.getBot());
+        this.m_PlayAreaGroup.remove(this.m_Bot.getBot());
         this.m_ScoreManager.hideScore( this.m_Camera );
 
         this.getInstructionMgr().hide();
     }
 
     showPlayArea() {
+        
         this.getInstructionMgr().show();
         this.m_ScoreManager.showScore( this.m_Camera );
-        this.m_Scene.add(this.m_Bot.getBot());
+        this.m_PlayAreaGroup.add(this.m_Bot.getBot());
         this.getControlPanel().show();
+
     }
 
     setupGameLoop() {
@@ -629,6 +665,7 @@ class AlgoMission {
     onVrStart( event ) {
         console.log("onVrStart called ");
         this.updateVrController( true );
+        this.m_ControlPanel.updatePanelPosition();
     }
 
     onVrEnd( event ) {
@@ -778,7 +815,7 @@ class AlgoMission {
         this.getLoadingManager().markJobComplete( AlgoMission.JOB_GROUP_BOT );
     }
 
-    addLoadingManager() {
+    addLoadingManager( renderer ) {
         this.m_LoadingManager = new LoadingManager( this, this.m_StartupLoadJobNames );
     }
 
@@ -803,7 +840,7 @@ class AlgoMission {
     }
 
     addControlPanel() {
-        this.m_ControlPanel = new ControlPanel(this.m_Camera);
+        this.m_ControlPanel = new ControlPanel(this.m_Camera, this.m_Renderer);
         this.m_ControlPanel.createControlPanel(this.getLoadingManager());
     }
 

@@ -12,7 +12,7 @@ var ALGO = ALGO || {};
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
-import { messageToMesh, limitViaScale, determineScale, getScreenHeightAtCameraDistance, getScreenWidthAtCameraDistance } from './algoutils.js'; 	        // utility functions
+import { getAspect, getFov, messageToMesh, limitViaScale, determineScale, getScreenHeightAtCameraDistance, getScreenWidthAtCameraDistance } from './algoutils.js'; 	        // utility functions
 
 class LoadingManager {
 
@@ -74,11 +74,11 @@ class LoadingManager {
         return this.m_JobMonitor.hasOwnProperty(job);
     }
 
-    displayLoadingScreen( camera ) {
+    displayLoadingScreen( camera, renderer ) {
 
         let distanceFromCamera = 10;
-        const screenHeight = getScreenHeightAtCameraDistance( distanceFromCamera, camera.fov );
-        const screenWidth = getScreenWidthAtCameraDistance( distanceFromCamera, screenHeight, camera.aspect );
+        const screenHeight = getScreenHeightAtCameraDistance( distanceFromCamera, getFov(renderer,camera) );
+        const screenWidth = getScreenWidthAtCameraDistance( distanceFromCamera, screenHeight, getAspect(renderer,camera) );
 
         let loadingMsgMesh = messageToMesh(document, "LOADING", 2, 0xFFFFFF, undefined);
         

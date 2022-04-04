@@ -9,7 +9,7 @@
 import * as THREE from 'three';
 
 import { AlgoMission } from '../algomission.mjs'; 	// for observer notification types
-import { limitViaScale, getScreenHeightAtCameraDistance, getScreenWidthAtCameraDistance } from './algoutils.js'; 	        // utility functions
+import { getAspect, getFov, limitViaScale, getScreenHeightAtCameraDistance, getScreenWidthAtCameraDistance } from './algoutils.js'; 	        // utility functions
 
 
 // Global Namespace
@@ -26,23 +26,25 @@ class ScoreManager {
         mapManager.registerObserver(this);  // for score updates
     }
 
-    createScore( camera ) {
+    createScore( camera, renderer ) {
         if( this.m_ScoreMesh == null ) {
             const wideDummyText = "---------------";
             this.createScoreMesh( wideDummyText, 1.25, 0xffffff, 0x000000);
             
             const distanceFromCamera = 10;
-            const screenHeight = getScreenHeightAtCameraDistance(distanceFromCamera, camera.fov);
-            const screenWidth = getScreenWidthAtCameraDistance( distanceFromCamera, screenHeight, camera.aspect );
+            const screenHeight = getScreenHeightAtCameraDistance(distanceFromCamera, getFov(renderer,camera));
+            const screenWidth = getScreenWidthAtCameraDistance( distanceFromCamera, screenHeight, getAspect(renderer,camera) );
             const maxWidth = screenWidth/5;
 
             limitViaScale( this.m_ScoreMesh, this.m_ScoreMesh.userData.width, maxWidth );
 
             const xPos = (screenWidth/2) - (this.m_ScoreMesh.userData.width*this.m_ScoreMesh.scale.x)/2;
             const yPos = (screenHeight/2) - (this.m_ScoreMesh.userData.height*this.m_ScoreMesh.scale.y)/2;
+
             this.m_ScoreMesh.position.set( xPos, yPos, -distanceFromCamera );
+
             this.m_ScoreMesh.name = "scoreMsg";
-            
+
             this.resetScore();
         }
     }

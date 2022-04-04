@@ -9,14 +9,15 @@
 // Global Namespace
 var ALGO = ALGO || {};
 
-import { getBestSelectMapScreenWidth, messageToMesh, limitViaScale } from './algoutils.js'; 	        // utility functions
+import { getFov, getAspect, getBestSelectMapScreenWidth, messageToMesh, limitViaScale } from './algoutils.js'; 	        // utility functions
 
 class DeathScreen {
 
-    constructor( camera ) {
+    constructor( camera, renderer ) {
         this.m_RetryButtonObjects = [];
 
         this.m_Camera = camera;
+        this.m_Renderer = renderer;
         this.m_DistanceFromCamera = 10;
 
         this.m_ScreenFinished = true;
@@ -54,7 +55,7 @@ class DeathScreen {
 
     displayDeathScreen() {
 
-        let screenWidth = getBestSelectMapScreenWidth(this.m_DistanceFromCamera, this.m_Camera.aspect, this.m_Camera.fov);
+        let screenWidth = getBestSelectMapScreenWidth(this.m_DistanceFromCamera, getAspect(this.m_Renderer,this.m_Camera), getFov(this.m_Renderer,this.m_Camera));
         let halfScreen = (screenWidth/2);    // as it is 0 centered
         let maxButtonWidth = screenWidth/4;
         let textHeight = 1;

@@ -11,13 +11,13 @@ var ALGO = ALGO || {};
 
 import * as THREE from 'three';
 
-import { getBestSelectMapScreenWidth, boundedScaleTo, messageToMesh, limitViaScale, determineScale, getScreenHeightAtCameraDistance, getScreenWidthAtCameraDistance } from './algoutils.js'; 	        // utility functions
+import { getAspect, getFov, getBestSelectMapScreenWidth, boundedScaleTo, messageToMesh, limitViaScale, determineScale, getScreenHeightAtCameraDistance, getScreenWidthAtCameraDistance } from './algoutils.js'; 	        // utility functions
 
 class MapScreen {
 
     static LOADER_JOB_NAME = "arrows";
 
-    constructor( scene, camera, loadingManager, mapManager ) {
+    constructor( scene, camera, renderer, loadingManager, mapManager ) {
 
         this.m_MapManager = mapManager;
         this.m_LoadingManager = loadingManager;
@@ -25,6 +25,7 @@ class MapScreen {
 
         this.m_Scene = scene;
         this.m_Camera = camera;
+        this.m_Renderer = renderer;
         this.m_DistanceFromCamera = 10;
 
         this.m_NextArrow = null;
@@ -122,7 +123,7 @@ class MapScreen {
         // remove any old map meshes
         this.removeMapSelectionMeshes();
 
-        let selectMapScreenSize = getBestSelectMapScreenWidth( this.m_DistanceFromCamera, this.m_Camera.aspect, this.m_Camera.fov );
+        let selectMapScreenSize = getBestSelectMapScreenWidth( this.m_DistanceFromCamera, getAspect(this.m_Renderer,this.m_Camera), getFov(this.m_Renderer,this.m_Camera)  );
 
         if( selectMapScreenSize < 17 ) {
             this.m_MapBatchSize = 1;
@@ -155,8 +156,6 @@ class MapScreen {
         this.displayMapSet( numMapsPerPage, currentMapOffset, xOffset, thumbnailWidth, mapSpacing );
     }
 
-
-
     removeMapSelectionMeshes( ) {
         this.m_Scene.remove( this.m_Scene.getObjectByName( "MapScreenGroup" ) );
         this.m_MapSelectionObjects = [];
@@ -175,7 +174,6 @@ class MapScreen {
 
         mapScreenGroup.position.set(this.m_PosInfrontOfCamera.x, this.m_PosInfrontOfCamera.y, this.m_PosInfrontOfCamera.z);
         mapScreenGroup.lookAt( this.m_Camera.position );
-
 
         // TODO position + rotation according to camera
         
@@ -292,7 +290,6 @@ class MapScreen {
         this.m_MapSelectionObjects.push(mapSelectGroup);
 
         mapScreenGroup.add( mapSelectGroup );
-       // this.m_Scene.add(mapSelectGroup); 
     }
 
     addMapSelectArrow( mapScreenGroup, arrow, name, xPos, yPos, zPos, yRot ) {
