@@ -11,7 +11,7 @@ var ALGO = ALGO || {};
 
 import * as THREE from 'three';
 
-import { calculateMeshHeight, messageToMesh, limitViaScale, getScreenHeightAtCameraDistance, getScreenWidthAtCameraDistance } from './algoutils.js'; 	        // utility functions
+import { getFov, getAspect, calculateMeshHeight, messageToMesh, limitViaScale, getScreenHeightAtCameraDistance, getScreenWidthAtCameraDistance } from './algoutils.js'; 	        // utility functions
 
 class WinScreen {
 
@@ -22,12 +22,13 @@ class WinScreen {
     static TROPHY_JOB = "trophy";
     static WIN_AUDIO_JOB = "winner audio";
 
-    constructor( camera, audioListener, loadingManager ) {
+    constructor( renderer, camera, audioListener, loadingManager ) {
 
         this.m_LoadingManager = loadingManager;
 
         //this.m_ScreenObjects = [];
 
+        this.m_Renderer = renderer;
         this.m_Camera = camera;
         this.m_DistanceFromCamera = 10;
 
@@ -147,7 +148,7 @@ class WinScreen {
         }
     }
     
-    showWinnerScreen( ) {
+    showWinnerScreen() {
  
         this.m_ButtonRevealCountdown = WinScreen.BUTTON_REVEAL_DELAY_SEC;
 
@@ -165,8 +166,8 @@ class WinScreen {
         
         const trophyHeight = calculateMeshHeight( this.m_Trophy );
 
-		const screenHeight = getScreenHeightAtCameraDistance( this.m_DistanceFromCamera, this.m_Camera.fov );
-        const screenWidth = getScreenWidthAtCameraDistance( this.m_DistanceFromCamera, screenHeight, this.m_Camera.aspect );
+		const screenHeight = getScreenHeightAtCameraDistance( this.m_DistanceFromCamera, getFov(this.m_Renderer,this.m_Camera) );
+        const screenWidth = getScreenWidthAtCameraDistance( this.m_DistanceFromCamera, screenHeight, getAspect(this.m_Renderer,this.m_Camera) );
 
         let messageMesh = messageToMesh(document, "Well done!", 1.25, 0xFFFFFF, undefined);
         messageMesh.name = "wellDoneMsg";

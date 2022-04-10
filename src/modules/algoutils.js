@@ -27,6 +27,20 @@ function getScreenWidthAtCameraDistance( distance, height, aspect ) {
     return visibleWidth;
 }
 
+function getFov( renderer, camera ) {
+    if( renderer.xr.isPresenting ) {
+        return renderer.xr.getCamera(camera).fov;
+    }
+    return camera.fov;
+}
+
+function getAspect( renderer, camera ) {
+    if( renderer.xr.isPresenting ) {
+        return renderer.xr.getCamera(camera).aspect;
+    }
+    return camera.aspect;
+}
+
 function getScreenHeightAtCameraDistance( distance, fov ) {
     var vFOV = THREE.MathUtils.degToRad( fov ); // convert vertical fov to radians
     var height = 2 * Math.tan( vFOV / 2 ) * distance; 
@@ -104,4 +118,4 @@ function calculateMeshHeight( mesh ) {
     return boxSize.y;
 }
 
-export { boundedScaleTo, calculateMeshDimensions, calculateMeshHeight, getScreenWidthAtCameraDistance, getScreenHeightAtCameraDistance, limitViaScale, determineScale, messageToMesh, getBestSelectMapScreenWidth };
+export { boundedScaleTo, calculateMeshDimensions, calculateMeshHeight, getAspect, getFov, getScreenWidthAtCameraDistance, getScreenHeightAtCameraDistance, limitViaScale, determineScale, messageToMesh, getBestSelectMapScreenWidth };

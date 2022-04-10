@@ -16,16 +16,17 @@ import { boundedScaleTo, messageToMesh, limitViaScale, determineScale, getScreen
 class TitleScreen {
 
     static SMILEY = "\uD83D\uDE00";
-    static BUSSTOP = "\uD83D\uDE8F";
+    static BUSSTOP = "\uD83D\uDE8F"; 
     static BUS = "\uD83D\uDE8C";
     static BIRD = "\uD83D\uDC26";
     static NOENTRY = "\u26D4";
     static COLLISION = "\uD83D\uDCA5";
 
-    constructor( camera, botMesh ) {
+    constructor( camera, scene, botMesh ) {
         this.m_ObjectsToCleanUp = [];
         this.m_MoveJobs = [];
 
+        this.m_Scene = scene;
         this.m_Camera = camera;
         this.m_DistanceFromCamera = 10;
 
@@ -48,23 +49,36 @@ class TitleScreen {
             TitleScreen.BUSSTOP + "You might lose points if you use the horn near a person waiting to be picked up..." + TitleScreen.BUSSTOP
         ];
 
+        // Make a group to represent the screen, with all other elements as relative children.
+        // 
+        let titleGroup = new THREE.Group();
+        titleGroup.name = "titleGroup";
+        this.m_Scene.add(titleGroup);
+        this.m_ObjectsToCleanUp.push(titleGroup.name);
+
+        const posInfrontOfCamera = new THREE.Vector3(0, 0, -this.m_DistanceFromCamera);
+        posInfrontOfCamera.applyMatrix4(this.m_Camera.matrixWorld);  
+        titleGroup.position.set(posInfrontOfCamera.x, posInfrontOfCamera.y, posInfrontOfCamera.z);
+        titleGroup.lookAt( this.m_Camera.position );
+
         const screenHeight = getScreenHeightAtCameraDistance( this.m_DistanceFromCamera, this.m_Camera.fov );
         const screenWidth = getScreenWidthAtCameraDistance( this.m_DistanceFromCamera, screenHeight, this.m_Camera.aspect );
 
         // TITLE TEXT
         let name = "titleMsg";
-        let titleMsgMesh = this.prepareMsgObject( "Algo-mission ", name, 1, 0xFFFFFF, screenWidth, 100 );
-        let titleBotMesh = this.prepareBot( titleMsgMesh, this.m_BotMesh, name + "_bot" );
+        let titleMsgMesh = this.prepareMsgObject( titleGroup, "Algo-mission ", name, 1, 0xFFFFFF, screenWidth, 100 );
+        let titleBotMesh = this.prepareBot( titleGroup, titleMsgMesh, this.m_BotMesh, name + "_bot" );
 
         const titleSpeed = 0.3;
+        let zPos = 0; // 0 as relative th titleGroup, which is already offset from camera
         let yPos = (screenHeight/2) - (titleMsgMesh.userData.height*titleMsgMesh.scale.y);
-        this.animateMsg( name, titleBotMesh, titleMsgMesh, screenWidth, yPos, -this.m_DistanceFromCamera, titleSpeed );
+        this.animateMsg( name, titleBotMesh, titleMsgMesh, screenWidth, yPos, zPos, titleSpeed );
 
         yPos -= (titleMsgMesh.userData.height*titleMsgMesh.scale.y) / 2;
         const urlDelayMs = 3000;
         name = "urlMsg";
-        let urlMsgMesh = this.prepareMsgObject( "(https://github.com/itfelstead/algo-mission)", name, 0.25, 0xFFFFFF, screenWidth, 30 );
-        setTimeout( this.displaySimpleMsg.bind(this, urlMsgMesh, yPos, -this.m_DistanceFromCamera), urlDelayMs );
+        let urlMsgMesh = this.prepareMsgObject( titleGroup, "(https://github.com/itfelstead/algo-mission)", name, 0.25, 0xFFFFFF, screenWidth, 30 );
+        setTimeout( this.displaySimpleMsg.bind(this, urlMsgMesh, yPos, zPos), urlDelayMs );
 
         const titlePadding = (titleMsgMesh.userData.height*titleMsgMesh.scale.y);
         let remainingHeight = screenHeight - (titleMsgMesh.userData.height*titleMsgMesh.scale.y) - titlePadding;
@@ -73,8 +87,8 @@ class TitleScreen {
         const infoDelayMs = 3000;
         yPos -= titlePadding;
         name = "info1Msg";
-        let info1MsgMesh = this.prepareMsgObject( "Mission: Can you tell the bus exactly how to get to the bus stop?", name, 0.5, 0xFFFFFF, screenWidth, 60 );
-        setTimeout( this.displaySimpleMsg.bind(this, info1MsgMesh, yPos, -this.m_DistanceFromCamera), infoDelayMs );
+        let info1MsgMesh = this.prepareMsgObject( titleGroup, "Mission: Can you tell the bus exactly how to get to the bus stop?", name, 0.5, 0xFFFFFF, screenWidth, 60 );
+        setTimeout( this.displaySimpleMsg.bind(this, info1MsgMesh, yPos, zPos), infoDelayMs );
 
         let padding = (info1MsgMesh.userData.height*info1MsgMesh.scale.y)+2 ;
         yPos -= ((info1MsgMesh.userData.height*info1MsgMesh.scale.y) + padding);
@@ -83,19 +97,19 @@ class TitleScreen {
         const tipDelayMs = 10000;
         let tipIdx = Math.floor(Math.random() * tips.length);
         name = "tip";
-        let tipMsgMesh = this.prepareMsgObject( "Tip: " + tips[tipIdx], name, 0.33, 0xFFFFFF, screenWidth, 40 );
-        let tipBotMesh = this.prepareBot( tipMsgMesh, this.m_BotMesh, name + "_bot" );
-        this.animateMotivationMsg( tipDelayMs, name, tipBotMesh, tipMsgMesh, screenWidth, yPos, -this.m_DistanceFromCamera );
+        let tipMsgMesh = this.prepareMsgObject( titleGroup, "Tip: " + tips[tipIdx], name, 0.33, 0xFFFFFF, screenWidth, 40 );
+        let tipBotMesh = this.prepareBot( titleGroup, tipMsgMesh, this.m_BotMesh, name + "_bot" );
+        this.animateMotivationMsg( tipDelayMs, name, tipBotMesh, tipMsgMesh, screenWidth, yPos, zPos );
 
         // click to continue
         padding = (tipMsgMesh.userData.height*tipMsgMesh.scale.y);
         yPos -= ((tipMsgMesh.userData.height*tipMsgMesh.scale.y) + padding);
         const clickDelayMs = 3000;
-        let clickMsgMesh = this.prepareMsgObject( TitleScreen.SMILEY + "Click to continue" + TitleScreen.SMILEY, name, 0.5, 0xFFFFFF, screenWidth, 40 );
+        let clickMsgMesh = this.prepareMsgObject( titleGroup, TitleScreen.SMILEY + "Click to continue" + TitleScreen.SMILEY, name, 0.5, 0xFFFFFF, screenWidth, 40 );
 
         yPos = -((screenHeight/2) - (clickMsgMesh.userData.height*clickMsgMesh.scale.y));
-        let clickBotMesh = this.prepareBot( clickMsgMesh, this.m_BotMesh, name + "_bot" );
-        this.animateMotivationMsg( clickDelayMs, name, clickBotMesh, clickMsgMesh, screenWidth, yPos, -this.m_DistanceFromCamera );
+        let clickBotMesh = this.prepareBot( titleGroup, clickMsgMesh, this.m_BotMesh, name + "_bot" );
+        this.animateMotivationMsg( clickDelayMs, name, clickBotMesh, clickMsgMesh, screenWidth, yPos, zPos );
 
     }
 
@@ -177,7 +191,7 @@ class TitleScreen {
         }
     }
 
-    prepareMsgObject( text, name, size, colour, screenWidth, percentOfWidth ) {
+    prepareMsgObject( titleGroup, text, name, size, colour, screenWidth, percentOfWidth ) {
 
         let mesh = messageToMesh(document, text, size, colour, undefined );
         mesh.name = name;
@@ -188,13 +202,12 @@ class TitleScreen {
         mesh.scale.set( scale, scale, 1 );
         mesh.visible = false;
  
-        this.m_Camera.add(mesh);
-        this.m_ObjectsToCleanUp.push(mesh.name);
+        titleGroup.add(mesh);
 
         return mesh;
     }
 
-    prepareBot( associatedMsgMesh, botMesh, name ) {
+    prepareBot( titleGroup, associatedMsgMesh, botMesh, name ) {
         // Add a suitably sized bus mesh 
         let botMsgCopy = botMesh.clone(); 
         botMsgCopy.name = name;
@@ -207,17 +220,16 @@ class TitleScreen {
         botMsgCopy.scale.set( 0.01, botScale, botScale );   // note: keep bot flat by making x scale small
         botMsgCopy.visible = false;
 
-        this.m_Camera.add( botMsgCopy );
-        this.m_ObjectsToCleanUp.push(botMsgCopy.name);
+        titleGroup.add(botMsgCopy);
 
         return botMsgCopy;
     }
 
     hide() {
         for( let i=0; i < this.m_ObjectsToCleanUp.length; ++i ) {
-            let obj = this.m_Camera.getObjectByName( this.m_ObjectsToCleanUp[i] );
+            let obj = this.m_Scene.getObjectByName( this.m_ObjectsToCleanUp[i] );
             if( obj ) {
-                this.m_Camera.remove( obj );
+                this.m_Scene.remove( obj );
             }
         }
         this.m_Finished = true;

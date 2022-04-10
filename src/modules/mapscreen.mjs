@@ -11,19 +11,21 @@ var ALGO = ALGO || {};
 
 import * as THREE from 'three';
 
-import { getBestSelectMapScreenWidth, boundedScaleTo, messageToMesh, limitViaScale, determineScale, getScreenHeightAtCameraDistance, getScreenWidthAtCameraDistance } from './algoutils.js'; 	        // utility functions
+import { getAspect, getFov, getBestSelectMapScreenWidth, boundedScaleTo, messageToMesh, limitViaScale, determineScale, getScreenHeightAtCameraDistance, getScreenWidthAtCameraDistance } from './algoutils.js'; 	        // utility functions
 
 class MapScreen {
 
     static LOADER_JOB_NAME = "arrows";
 
-    constructor( camera, loadingManager, mapManager ) {
+    constructor( scene, camera, renderer, loadingManager, mapManager ) {
 
         this.m_MapManager = mapManager;
         this.m_LoadingManager = loadingManager;
         this.m_MapSelectionObjects = [];
 
+        this.m_Scene = scene;
         this.m_Camera = camera;
+        this.m_Renderer = renderer;
         this.m_DistanceFromCamera = 10;
 
         this.m_NextArrow = null;
@@ -57,6 +59,16 @@ class MapScreen {
 
     destroy() {
 
+    }
+
+    UpdateMapScreenSpawnPosition() {
+        // For VR, moving the map screen spawn position relative to the camera makes sense
+        // when the screen is originally entered, but we don't want to adjust it on each
+        // next/prev arrow press.
+        // So: only call this method when entering the map selection screen state.
+        //
+        this.m_PosInfrontOfCamera = new THREE.Vector3(0, 0, -this.m_DistanceFromCamera);
+        this.m_PosInfrontOfCamera.applyMatrix4(this.m_Camera.matrixWorld);  
     }
 
     show( currentMap ) {
@@ -111,7 +123,7 @@ class MapScreen {
         // remove any old map meshes
         this.removeMapSelectionMeshes();
 
-        let selectMapScreenSize = getBestSelectMapScreenWidth( this.m_DistanceFromCamera, this.m_Camera.aspect, this.m_Camera.fov );
+        let selectMapScreenSize = getBestSelectMapScreenWidth( this.m_DistanceFromCamera, getAspect(this.m_Renderer,this.m_Camera), getFov(this.m_Renderer,this.m_Camera)  );
 
         if( selectMapScreenSize < 17 ) {
             this.m_MapBatchSize = 1;
@@ -141,27 +153,29 @@ class MapScreen {
 
         let currentMapOffset = Math.max(this.m_MapSelectIndex, 0);
  
-        this.displayMapSet( numMapsPerPage, currentMapOffset, xOffset, thumbnailWidth, mapSpacing, this.m_DistanceFromCamera );
+        this.displayMapSet( numMapsPerPage, currentMapOffset, xOffset, thumbnailWidth, mapSpacing );
     }
-
-
 
     removeMapSelectionMeshes( ) {
-        for( var i = 0; i < this.m_MapSelectionObjects.length; i++ ) {
-            this.m_Camera.remove( this.m_MapSelectionObjects[i] );
-        }
+        this.m_Scene.remove( this.m_Scene.getObjectByName( "MapScreenGroup" ) );
         this.m_MapSelectionObjects = [];
-
-        this.m_Camera.remove( this.m_Camera.getObjectByName("mapSelectNextSpotlight") );
-        this.m_Camera.remove( this.m_Camera.getObjectByName("mapSelectPrevSpotlight") );
     }
 
-    displayMapSet( numToShow, firstId, xOffset, thumbnailWidth, mapSpacing, distanceFromCamera ) {
+    displayMapSet( numToShow, firstId, xOffset, thumbnailWidth, mapSpacing ) {
         let screenOrder = 0;
         let thumbnailHeight = thumbnailWidth;
         let mapY = 0;
         let batch = Math.trunc(firstId / numToShow);
         let mapIdx = numToShow*batch;
+
+        let mapScreenGroup = new THREE.Group();
+        mapScreenGroup.name = "MapScreenGroup";
+        this.m_Scene.add( mapScreenGroup );
+
+        mapScreenGroup.position.set(this.m_PosInfrontOfCamera.x, this.m_PosInfrontOfCamera.y, this.m_PosInfrontOfCamera.z);
+        mapScreenGroup.lookAt( this.m_Camera.position );
+
+        // TODO position + rotation according to camera
         
         let lastMapToShow = Math.min( this.m_MapManager.jsonMaps.length, (numToShow*batch)+numToShow );
         for( ; mapIdx < lastMapToShow; ++mapIdx ) {
@@ -171,7 +185,7 @@ class MapScreen {
                 continue;
             }
 
-            this.addMapSelectThumbnail( mapDef, mapIdx, thumbnailWidth, thumbnailHeight, screenOrder, mapSpacing, xOffset, mapY, distanceFromCamera );
+            this.addMapSelectThumbnail( mapScreenGroup, mapDef, mapIdx, thumbnailWidth, thumbnailHeight, screenOrder, mapSpacing, xOffset, mapY );
             screenOrder++;
         }
 
@@ -179,11 +193,11 @@ class MapScreen {
 
         if( lastMapToShow < this.m_MapManager.jsonMaps.length )
         {
-            this.addMapSelectArrow( this.m_NextArrow, "mapSelectNextArrow", 3, -(arrowYOffset), -distanceFromCamera, 1.6 )
+            this.addMapSelectArrow( mapScreenGroup, this.m_NextArrow, "mapSelectNextArrow", 3, -(arrowYOffset), 0, 1.6 )
         }
 
         if( batch > 0 ) {
-            this.addMapSelectArrow( this.m_PrevArrow, "mapSelectPrevArrow", -3, -(arrowYOffset), -distanceFromCamera, -1.6 )
+            this.addMapSelectArrow( mapScreenGroup, this.m_PrevArrow, "mapSelectPrevArrow", -3, -(arrowYOffset), 0, -1.6 )
         }
  
         // Set the arrows spinning only once per 'selectLevel' state
@@ -195,17 +209,17 @@ class MapScreen {
         spotlight.position.set(this.m_NextArrow.position.x,this.m_NextArrow.position.y,0);
         spotlight.target = this.m_NextArrow;
         spotlight.name = "mapSelectNextSpotlight";
-        this.m_Camera.add(spotlight);
+        mapScreenGroup.add(spotlight);
 
         let prevSpotlight = new THREE.SpotLight( 0xffffff, 1, 20, Math.PI/2  );
         prevSpotlight.position.set(this.m_PrevArrow.position.x,this.m_PrevArrow.position.y,0);
         prevSpotlight.target = this.m_PrevArrow;
         prevSpotlight.name = "mapSelectPrevSpotlight";
-        this.m_Camera.add(prevSpotlight);
+        mapScreenGroup.add(prevSpotlight);
     }
 
 
-    addMapSelectThumbnail( mapDef, mapIdx, thumbnailWidth, thumbnailHeight, screenOrder, mapSpacing, xOffset, mapY, distanceFromCamera ) {
+    addMapSelectThumbnail( mapScreenGroup, mapDef, mapIdx, thumbnailWidth, thumbnailHeight, screenOrder, mapSpacing, xOffset, mapY ) {
 
         let mapSelectGroup = new THREE.Group();
 
@@ -218,7 +232,7 @@ class MapScreen {
         let mapX = (screenOrder * thumbnailWidth) + (screenOrder * mapSpacing);
         mapX += xOffset;    // center
         
-        thumbMesh.position.set( mapX, mapY, -distanceFromCamera );
+        thumbMesh.position.set( mapX, mapY, 0 );
         thumbMesh.name = mapIdx;
         
         mapSelectGroup.add(thumbMesh);
@@ -242,7 +256,7 @@ class MapScreen {
             const geometry = new THREE.CircleGeometry( 0.25, 16 );
             const material = new THREE.MeshStandardMaterial( { color: colour } );
             const awardMesh = new THREE.Mesh( geometry, material );
-            awardMesh.position.set( awardXOffset+ spacing, awardYOffset - spacing, -(distanceFromCamera) )
+            awardMesh.position.set( awardXOffset+ spacing, awardYOffset - spacing, 0 )
             mapSelectGroup.add( awardMesh );
         }
 
@@ -260,7 +274,7 @@ class MapScreen {
         let mapIdText = "Map " + mapIdx + ": " +  mapDef.name;
         let mapIdMsgMesh = messageToMesh(document, mapIdText, mapIdTextHeight, 0xFFFFFF, undefined);
         limitViaScale( mapIdMsgMesh, mapIdMsgMesh.userData.width, thumbnailWidth );
-        mapIdMsgMesh.position.set( thumbMesh.position.x, thumbMesh.position.y+(thumbnailHeight/2)+mapIdTextHeight, -(distanceFromCamera) );
+        mapIdMsgMesh.position.set( thumbMesh.position.x, thumbMesh.position.y+(thumbnailHeight/2)+mapIdTextHeight, 0 );
         mapIdMsgMesh.name = mapIdx;
         mapSelectGroup.add( mapIdMsgMesh );
 
@@ -269,22 +283,25 @@ class MapScreen {
         let mapDescrText = mapDef.instructions;
         let mapDescrMesh = messageToMesh(document, mapDescrText, mapDescrTextHeight, 0xFFFFFF, undefined);
         limitViaScale( mapDescrMesh, mapDescrMesh.userData.width, thumbnailWidth );
-        mapDescrMesh.position.set( thumbMesh.position.x, thumbMesh.position.y-(thumbnailHeight/2)-mapDescrTextHeight, -(distanceFromCamera) );
+        mapDescrMesh.position.set( thumbMesh.position.x, thumbMesh.position.y-(thumbnailHeight/2)-mapDescrTextHeight, 0 );
         mapDescrMesh.name = mapIdx;
         mapSelectGroup.add( mapDescrMesh );
 
         this.m_MapSelectionObjects.push(mapSelectGroup);
-        this.m_Camera.add(mapSelectGroup);
+
+        mapScreenGroup.add( mapSelectGroup );
     }
 
-    addMapSelectArrow( arrow, name, xPos, yPos, zPos, yRot ) {
+    addMapSelectArrow( mapScreenGroup, arrow, name, xPos, yPos, zPos, yRot ) {
         arrow.scale.set(0.5,0.5,0.5);
         arrow.rotation.set( 0, yRot, 0 );
         arrow.position.set( xPos, yPos, zPos );
         arrow.name = name;
         
         this.m_MapSelectionObjects.push(arrow);
-        this.m_Camera.add(arrow);
+
+        mapScreenGroup.add( arrow );
+        //this.m_Camera.add(arrow);
     }
 
     arrowCreatedCb( obj ) {

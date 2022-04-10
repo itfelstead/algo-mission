@@ -9,6 +9,10 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
+// VR support:
+import { VRButton } from 'three/examples/jsm/webxr/VRButton.js';
+import { XRControllerModelFactory } from 'three/examples/jsm/webxr/XRControllerModelFactory.js';
+
 import { Bot } from './modules/bot.mjs';
 import { MapManager } from './modules/mapmanager.mjs';
 import { InstructionManager } from './modules/instructionmanager.mjs';
@@ -21,6 +25,7 @@ import { TitleScreen } from './modules/titlescreen.mjs';
 import { MapScreen } from './modules/mapscreen.mjs';
 import { WinScreen } from './modules/winscreen.mjs';
 import { DeathScreen } from './modules/deathscreen.mjs';
+import { Group } from 'three';
 
 // Global Namespace
 var ALGO = ALGO || {};
@@ -55,6 +60,8 @@ class AlgoMission {
 
     static CAMERA_Y_OFFSET = 60;
     static CAMERA_Z_OFFSET = -40;
+
+    static LASER_POINTER_NAME = "laserPointer";
 
     // Job groups
     // These cover multiple assets, and are used to generalise loading progress
@@ -105,7 +112,9 @@ class AlgoMission {
         this.m_AudioListener = null;
         this.m_AmbientButtonClickSound = null;
         
-        
+        // to ease placement of play area objects
+        this.m_PlayAreaGroup = null;
+        this.m_PlayAreaSpawnPoint = null;
 
         this.m_Observers = [];
 
@@ -211,8 +220,8 @@ class AlgoMission {
 
         this.setupGameLoop();
 
-        this.gameLoop(); 	// intial kickoff, subsequest calls via requestAnimationFrame()
-    }
+        this,this.m_Renderer.setAnimationLoop( this.gameLoop.bind(this) );
+   }
 
     actOnState( timeElapsed ) {
         switch (this.m_State) {
@@ -277,6 +286,33 @@ class AlgoMission {
             this.m_Bot.update(AlgoMission.UPDATE_TIME_STEP)
 
             this.m_MapManager.update(AlgoMission.UPDATE_TIME_STEP);
+        }
+
+        this.updateLaserPointer();
+    }
+
+    // VR Specific
+    updateLaserPointer() {
+
+        let laserPointer = this.m_Scene.getObjectByName(AlgoMission.LASER_POINTER_NAME);
+        if( laserPointer ) {
+            const controller1 = this.m_Renderer.xr.getController(0);
+            if( controller1 ) {
+
+                const [startPoint, endPoint] = this.calculateLaserPoints( controller1 );
+ 
+                const position = laserPointer.geometry.attributes.position.array;
+                position[0] = startPoint.x;
+                position[1] = startPoint.y;
+                position[2] = startPoint.z;
+                position[3] = -endPoint.x;
+                position[4] = -endPoint.y;
+                position[5] = -endPoint.z;
+        
+                // Note: need to set needsUpdate AND computeBoundingBox in order for screen to update
+                laserPointer.geometry.attributes.position.needsUpdate=true; 
+                laserPointer.geometry.computeBoundingBox(); 
+            }
         }
     }
 
@@ -381,7 +417,7 @@ class AlgoMission {
                 break;
             case AlgoMission.TAppState.SETUP: 
                 this.addLoadingManager();
-                this.getLoadingManager().displayLoadingScreen( this.m_Camera );
+                this.getLoadingManager().displayLoadingScreen( this.m_Camera, this.m_Renderer );
                 this.initialise();
                 break;
             case AlgoMission.TAppState.LOADED:
@@ -415,6 +451,7 @@ class AlgoMission {
                 //this.m_MapSelectIndex = Math.max(0, this.m_SelectedMap);     // start selection at current map
                 let oldMap = this.m_SelectedMap;
                 this.m_SelectedMap = -1;
+                this.getMapScreen().UpdateMapScreenSpawnPosition(); // i.e. in front of VR headset (if in use)
                 this.getMapScreen().show( oldMap );
                 break;
         }
@@ -430,9 +467,9 @@ class AlgoMission {
                 this.setMeshVisibility( "sky", true);
                 break;
             case AlgoMission.TAppState.LOADED:
-                this.getTitleScreen().hide( this.m_Camera );
+                this.getTitleScreen().hide();
                 this.toggleGridHelper();
-                this.m_ScoreManager.createScore( this.m_Camera );
+                this.m_ScoreManager.createScore( this.m_Camera, this.m_Renderer );
                 break;
             case AlgoMission.TAppState.READY:
                 break;
@@ -453,24 +490,55 @@ class AlgoMission {
     }
 
     updateCamera() {
-        this.m_Camera.updateProjectionMatrix();
-        this.m_Camera.position.set(this.m_Bot.getBot().position.x, 
-                                    this.m_Bot.getBot().position.y + AlgoMission.CAMERA_Y_OFFSET, 
-                                    this.m_Bot.getBot().position.z + AlgoMission.CAMERA_Z_OFFSET);
-        this.m_Camera.lookAt(this.m_Bot.getBot().position);
+
+
+        // Non-VR = move behind and point at bot, otherwise let user stare at what they want
+        if( this.m_Renderer.xr.isPresenting == false ) {
+            this.m_Camera.updateProjectionMatrix();
+            this.m_Camera.position.set(this.m_Bot.getBot().position.x, 
+                                        this.m_Bot.getBot().position.y + AlgoMission.CAMERA_Y_OFFSET, 
+                                        this.m_Bot.getBot().position.z + AlgoMission.CAMERA_Z_OFFSET);
+
+            this.m_Camera.lookAt(this.m_Bot.getBot().position);
+        }
     }
 
     resetPlayArea() {
+
+        this.updatePlayAreaSpawnPosition();
+
         this.m_InstructionMgr.clearInstructions();
         this.m_InstructionMgr.updateWindow();
 
-        this.m_MapManager.loadMap(this.m_SelectedMap, this.m_Scene);
+        this.m_MapManager.loadMap(this.m_SelectedMap, this.m_PlayAreaGroup);
 
         this.m_Bot.respawnBot();
 
         this.m_ScoreManager.resetScore();
 
-        this.updateCamera();
+        this.updateCamera(); 
+    }
+
+    updatePlayAreaSpawnPosition() {
+        // TODO: in non-VR we moved the camera behind the bot, but now we need to move everything in fromt of the camera!
+
+        if( this.m_Renderer.xr.isPresenting ) {
+            // in VR we spawn the play area in front of the headset
+            this.m_PlayAreaSpawnPoint = new THREE.Vector3(0, -AlgoMission.CAMERA_Y_OFFSET, AlgoMission.CAMERA_Z_OFFSET);
+            this.m_PlayAreaSpawnPoint.applyMatrix4(this.m_Camera.matrixWorld);
+    
+            this.m_PlayAreaGroup.position.set(this.m_PlayAreaSpawnPoint.x, this.m_PlayAreaSpawnPoint.y, this.m_PlayAreaSpawnPoint.z);
+    
+            // need to rotate the play area according to the direction that the headset faces?
+            // TODO
+        }
+        else {
+            // in non-VR, always reset the camera, so the play area is in the middle of the scene.
+            this.m_PlayAreaGroup.position.set( 0, 0, 0 );
+        }
+
+       // this.m_PlayAreaGroup.lookAt( this.m_Camera.position );  // TBD - ????? do we want to do this?
+
     }
 
     //
@@ -478,6 +546,10 @@ class AlgoMission {
     //
 
     initialise() {
+
+        this.m_PlayAreaGroup = new THREE.Group();
+        this.m_PlayAreaGroup.name = "PlayAreaGroup";
+        this.m_Scene.add(this.m_PlayAreaGroup);
 
         this.addAudio(this.m_Camera);
 
@@ -509,7 +581,7 @@ class AlgoMission {
     }
 
     createTitleScreen() {
-        this.m_TitleScreen = new TitleScreen( this.m_Camera, this.getBot() );
+        this.m_TitleScreen = new TitleScreen( this.m_Camera, this.m_Scene, this.getBot() );
     }
 
     getTitleScreen() {
@@ -517,7 +589,7 @@ class AlgoMission {
     }
 
     createMapScreen() {
-        this.m_MapScreen = new MapScreen( this.m_Camera, this.getLoadingManager(), this.getMapManager() );
+        this.m_MapScreen = new MapScreen( this.m_Scene, this.m_Camera, this.m_Renderer, this.getLoadingManager(), this.getMapManager() );
     }
 
     getMapScreen() {
@@ -525,7 +597,7 @@ class AlgoMission {
     }
     
     createWinScreen() {
-        this.m_WinScreen = new WinScreen( this.m_Camera, this.m_AudioListener,  this.getLoadingManager() );
+        this.m_WinScreen = new WinScreen( this.m_Renderer, this.m_Camera, this.m_AudioListener,  this.getLoadingManager() );
     }
 
     getWinScreen() {
@@ -533,7 +605,7 @@ class AlgoMission {
     }
 
     createDeathScreen() {
-        this.m_DeathScreen = new DeathScreen( this.m_Camera );
+        this.m_DeathScreen = new DeathScreen( this.m_Camera, this.m_Renderer );
     }
 
     getDeathScreen() {
@@ -542,24 +614,29 @@ class AlgoMission {
 
 
     hidePlayArea() {
+
+
         this.getControlPanel().hide();
-        this.m_Scene.remove(this.m_Bot.getBot());
+        this.m_PlayAreaGroup.remove(this.m_Bot.getBot());
         this.m_ScoreManager.hideScore( this.m_Camera );
 
         this.getInstructionMgr().hide();
     }
 
     showPlayArea() {
+        
         this.getInstructionMgr().show();
         this.m_ScoreManager.showScore( this.m_Camera );
-        this.m_Scene.add(this.m_Bot.getBot());
+        this.m_PlayAreaGroup.add(this.m_Bot.getBot());
         this.getControlPanel().show();
+
     }
 
     setupGameLoop() {
         this.m_Clock = new THREE.Clock();
 
         this.m_Lag = 0;
+        
     }
 
     setupBasicScene() {
@@ -571,6 +648,95 @@ class AlgoMission {
         this.m_Scene = new THREE.Scene();
 
         this.addCamera();
+
+        // VR Support button
+        document.body.appendChild( VRButton.createButton( this.m_Renderer ) );
+        this.m_Renderer.xr.enabled = true;
+
+        this.m_Renderer.xr.addEventListener( 'sessionstart', this.onVrStart.bind(this) );
+        this.m_Renderer.xr.addEventListener( 'sessionend', this.onVrEnd.bind(this) );
+
+        // VR Controller
+        if( this.m_Renderer.xr.isPresenting ) {
+            this.updateVrController( true );
+        }
+    }
+
+    onVrStart( event ) {
+        console.log("onVrStart called ");
+        this.updateVrController( true );
+        this.m_ControlPanel.updatePanelPosition();
+    }
+
+    onVrEnd( event ) {
+        console.log("onVrEnd called ");
+        this.updateVrController( false );
+    }
+
+    updateVrController(addController) {
+        if( addController == false ) {
+            this.removeLaserPointer();
+        }
+        else {
+            const controllerGrip1 = this.m_Renderer.xr.getControllerGrip(0);
+            if( controllerGrip1 ) {
+                let controllerModelFactory = new XRControllerModelFactory();
+                const model1 = controllerModelFactory.createControllerModel( controllerGrip1 );
+                controllerGrip1.add( model1 );
+                this.m_Scene.add( controllerGrip1 );
+            }
+
+            const controller1 = this.m_Renderer.xr.getController(0);
+            if( controller1 ) {
+                controller1.addEventListener('selectstart', this.onSelectStart.bind(this) );
+                controller1.addEventListener('selectend', this.onSelectEnd.bind(this) ); 
+                controller1.userData.id = 0;
+
+                this.addLaserPointer(controller1);
+            }
+        }
+    }
+
+    addLaserPointer(controller) {
+        // VR Laser pointer
+        const material = new THREE.LineBasicMaterial( { color: 0x0000ff, linewidth: 2 } );
+
+        const points = this.calculateLaserPoints(controller);
+
+        const geometry = new THREE.BufferGeometry().setFromPoints( points );
+        let laserPointer = new THREE.Line( geometry, material );
+        laserPointer.geometry.setDrawRange(0,2);
+        laserPointer.name = AlgoMission.LASER_POINTER_NAME;
+        this.m_Scene.add( laserPointer );
+    }
+
+    removeLaserPointer() {
+        this.m_Scene.remove( AlgoMission.LASER_POINTER_NAME );
+    }
+
+    calculateLaserPoints(controller) {
+        const distance = 100;
+
+        let direction = new THREE.Vector3();
+        controller.getWorldDirection( direction );
+
+        const controllerPos = new THREE.Vector3();
+        controller.getWorldPosition(controllerPos);
+
+        let startPoint = new THREE.Vector3( controllerPos.x, controllerPos.y, controllerPos.z ); //controller1.position.x,controller1.position.y,controller1.position.z );
+        let endPoint = new THREE.Vector3();
+        direction.multiplyScalar(distance);
+        endPoint.addVectors( startPoint, direction );
+
+        return [startPoint, endPoint ];
+    }
+
+    onSelectStart( event ) {
+        this.handleClickByState( event );
+    }
+
+    onSelectEnd( event ) {
+       // TBD - maybe don't need
     }
 
     addCamera() {
@@ -649,7 +815,7 @@ class AlgoMission {
         this.getLoadingManager().markJobComplete( AlgoMission.JOB_GROUP_BOT );
     }
 
-    addLoadingManager() {
+    addLoadingManager( renderer ) {
         this.m_LoadingManager = new LoadingManager( this, this.m_StartupLoadJobNames );
     }
 
@@ -674,7 +840,7 @@ class AlgoMission {
     }
 
     addControlPanel() {
-        this.m_ControlPanel = new ControlPanel(this.m_Camera);
+        this.m_ControlPanel = new ControlPanel(this.m_Camera, this.m_Renderer);
         this.m_ControlPanel.createControlPanel(this.getLoadingManager());
     }
 
@@ -692,6 +858,8 @@ class AlgoMission {
 
         document.addEventListener('mousedown', this.onDocumentMouseDown.bind(this), false);
         document.addEventListener('touchstart', this.onDocumentTouchStart.bind(this), false);
+
+        // note: VR events are setup in setupBasicScene
     }
 
     //
@@ -702,6 +870,8 @@ class AlgoMission {
     // Standard game loop with a fixed update rate to keep
     // things consistent, and a variable render rate to allow
     // for differences in machine performance
+    //
+    // Note: repeatedly triggered by the call to setAnimationLoop()
     //
     gameLoop() {
         var elapsedTime = this.m_Clock.getDelta();
@@ -718,8 +888,6 @@ class AlgoMission {
         }
 
         this.render();
-
-        requestAnimationFrame(this.gameLoop.bind(this));
     }
 
     update() {
@@ -744,14 +912,12 @@ class AlgoMission {
 
     // For touch screens we have to mess about a bit to avoid accidental double clicks
     onDocumentTouchStart(event) {
-        event.preventDefault();
         event.clientX = event.touches[0].clientX;
         event.clientY = event.touches[0].clientY;
         this.onDocumentMouseDown(event);
     }
    
     onDocumentMouseDown(event) {
-        event.preventDefault();
 
         if( this.m_ClickBlackoutHack == false ) {
             this.m_ClickBlackoutHack = true;
@@ -766,7 +932,7 @@ class AlgoMission {
     handleClickByState( event ) {
 
         switch( this.m_State ) {
-            case AlgoMission.TAppState.INITIAL:
+            case AlgoMission.TAppState.INITIAL: 
                 // NOOP
                 break;
             case AlgoMission.TAppState.LOADED:
@@ -777,7 +943,7 @@ class AlgoMission {
             case AlgoMission.TAppState.READY:
                 var instructionsUpdated = 0;
                 var instructionClicked =
-                    this.detectInstructionPress(event.clientX, event.clientY, this.m_Raycaster);
+                    this.detectInstructionPress(event);
     
                 if (instructionClicked >= 0) {
                     this.m_AmbientButtonClickSound.play();
@@ -815,7 +981,7 @@ class AlgoMission {
                 this.getWinScreen().hide();
                 break;
             case AlgoMission.TAppState.DEAD:
-                let buttonSelected = this.detectButtonPress( event.clientX, event.clientY, this.m_Raycaster, this.getDeathScreen().getActiveObjects() );
+                let buttonSelected = this.detectButtonPress( event, this.getDeathScreen().getActiveObjects() );
                 if( buttonSelected == "retryButton" ) {
                     this.m_Retry = true;
                 }
@@ -827,7 +993,7 @@ class AlgoMission {
                 // NOOP
                 break;
             case AlgoMission.TAppState.SELECTMAP:
-                let mapSelected = this.detectButtonPress( event.clientX, event.clientY, this.m_Raycaster, this.getMapScreen().getMapSelectionObjects() );
+                let mapSelected = this.detectButtonPress( event, this.getMapScreen().getMapSelectionObjects() );
                 let mapId = this.getMapScreen().handleClick(mapSelected);
                 if( mapId != -1 ) {
                     // a new map was selected
@@ -837,31 +1003,50 @@ class AlgoMission {
         }
     }
 
-	detectInstructionPress(xPos, yPos, raycaster) {
-        return this.detectButtonPress( xPos, yPos, raycaster, this.getControlPanel().getActiveButtons() );
+	detectInstructionPress(event) {
+        return this.detectButtonPress( event, this.getControlPanel().getActiveButtons() );
     }
 
-    detectButtonPress( xPos, yPos, raycaster, buttonsToCheck ) {
+    detectButtonPress( event, buttonsToCheck ) {
         let selection = -1;
 
-        if (typeof (raycaster) == "undefined") {
+        if (typeof (this.m_Raycaster) == "undefined") {
 			return selection;
 		}
 
-        var mouse = new THREE.Vector2(); // TODO: create once
-    
-        mouse.x = ( xPos / this.m_Renderer.domElement.clientWidth ) * 2 - 1;
-        mouse.y = - ( yPos / this.m_Renderer.domElement.clientHeight ) * 2 + 1;
-        
-        raycaster.setFromCamera( mouse, this.m_Camera );
+        if( typeof event.clientX != 'undefined' ) {
+            console.log("was mouse click");
+            var mouse = new THREE.Vector2(); // TODO: create once
+            mouse.x = ( event.clientX / this.m_Renderer.domElement.clientWidth ) * 2 - 1;
+            mouse.y = - ( event.clientY / this.m_Renderer.domElement.clientHeight ) * 2 + 1;
+            
+            this.m_Raycaster.setFromCamera( mouse, this.m_Camera );
+        }
+        else if( event.hasOwnProperty('target') ) {
+            console.log("was VR click");
+            const controller = event.target;
 
-        var intersects = raycaster.intersectObjects( buttonsToCheck );
+            let tempMatrix = new THREE.Matrix4();
+            tempMatrix.identity().extractRotation(controller.matrixWorld);
+            this.m_Raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+            this.m_Raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
+        }
+
+        let intersects = this.m_Raycaster.intersectObjects(buttonsToCheck);
 
         if( intersects.length > 0 ) {
             selection = intersects[0].object.name;
         }
 
 		return selection;
+    }
+
+    getIntersections(controller, buttonsToCheck) {
+        let tempMatrix = new THREE.Matrix4();
+        tempMatrix.identity().extractRotation(controller.matrixWorld);
+        this.m_Raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+        this.m_Raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
+        return this.m_Raycaster.intersectObjects(buttonsToCheck);
     }
 
     toggleGridHelper() {

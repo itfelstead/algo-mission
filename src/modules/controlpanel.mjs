@@ -14,7 +14,7 @@ var ALGO = ALGO || {};
 import * as THREE from 'three';
 
 import { InstructionManager } from './instructionmanager.mjs';
-import { limitViaScale, getScreenHeightAtCameraDistance, getScreenWidthAtCameraDistance, calculateMeshDimensions } from './algoutils.js'; 	        // utility functions
+import { limitViaScale, getFov, getAspect, getScreenHeightAtCameraDistance, getScreenWidthAtCameraDistance, calculateMeshDimensions } from './algoutils.js'; 	        // utility functions
 
 class ControlPanel {
 
@@ -22,11 +22,12 @@ class ControlPanel {
 	* constructor
 	* @class The ControlPanel class.
 	*/
-	constructor( camera ) {
+	constructor( camera, renderer ) {
 		this.m_ControlPanelGroup = null
 		this.m_DistanceFromCamera = 10;
 		this.m_NumButtonsToCreate = 0;
 		this.m_Camera = camera;
+		this.m_Renderer = renderer;
 	}
 
 	/**
@@ -100,7 +101,7 @@ class ControlPanel {
 		var buttonMaterial = new THREE.MeshBasicMaterial({ map: texture, transparent:true, opacity:1.0 });
 		var buttonMesh = new THREE.Mesh(buttonGeo, buttonMaterial);
 		buttonMesh.name = buttonConfig.id;
-		buttonMesh.position.set(-(gridOffset + (buttonConfig.x * stepSize)), gridOffset + (buttonConfig.y * stepSize), -this.m_DistanceFromCamera);
+		buttonMesh.position.set(-(gridOffset + (buttonConfig.x * stepSize)), gridOffset + (buttonConfig.y * stepSize), 0);
 		
 		this.m_ControlPanelGroup.add( buttonMesh );
 
@@ -112,21 +113,28 @@ class ControlPanel {
 			setTimeout(this.positionPanelOnLoad.bind(this, panelConfig, loadingManager), 33);
 		}
 		else {
-			const size = calculateMeshDimensions(this.m_ControlPanelGroup );
-
-			const screenHeight = getScreenHeightAtCameraDistance( this.m_DistanceFromCamera, this.m_Camera.fov );
-			const screenWidth = getScreenWidthAtCameraDistance( this.m_DistanceFromCamera, screenHeight, this.m_Camera.aspect );
-
-			if( size.x*3 > screenWidth ) {
-				// Screen is small (less than 3 panels wide), so best to place it centrally at bottom of the screen
-				limitViaScale( this.m_ControlPanelGroup, size.x, screenWidth/2 );
-				this.m_ControlPanelGroup.position.set( 0, -( (screenHeight/2.5) - (size.y*this.m_ControlPanelGroup.scale.y)/2) );
-			}
-			else {
-				// Screen is large enough to shove the controls on the left
-				this.m_ControlPanelGroup.position.set( -( (screenWidth/2) - ((size.x*this.m_ControlPanelGroup.scale.x)/2) ), 0 );
-			}
+			this.updatePanelPosition();
 		}
+	}
+
+	updatePanelPosition() {
+
+		// Scale the panel 15% of the screen width, and postion it on the lower left
+		this.m_ControlPanelGroup.scale.set( 1, 1, 1);  // reset earlier scaling
+		const size = calculateMeshDimensions( this.m_ControlPanelGroup );
+
+		const screenHeight = getScreenHeightAtCameraDistance( this.m_DistanceFromCamera, getFov(this.m_Renderer,this.m_Camera) );
+		const screenWidth = getScreenWidthAtCameraDistance( this.m_DistanceFromCamera, screenHeight, getAspect(this.m_Renderer,this.m_Camera) );
+
+		const targetPercentOfScreen = 0.20;
+		const desiredWidth = screenWidth * targetPercentOfScreen;
+		const requiredScale = desiredWidth/size.x;
+		this.m_ControlPanelGroup.scale.set( requiredScale, requiredScale, 1);
+
+		const xPos = -(screenWidth/2) + desiredWidth;
+		const yPos = -((size.y/2) * requiredScale);
+		this.m_ControlPanelGroup.position.set( xPos, yPos, -this.m_DistanceFromCamera );
+
 	}
 
 	hide() {
@@ -135,7 +143,7 @@ class ControlPanel {
 
     show() {
 		this.m_Camera.add( this.m_ControlPanelGroup );
-    }
+	}
 
 	getActiveButtons() {
 		return this.m_ControlPanelGroup.children;
